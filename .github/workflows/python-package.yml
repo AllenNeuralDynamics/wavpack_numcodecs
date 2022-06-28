@@ -20,17 +20,17 @@ jobs:
         with:
           python-version: 3.9
       - name: Install WavPack
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-              sudo apt update
-              sudo apt install git 
+          sudo apt update
+          sudo apt install git 
 
-              # clone wavpack
-              git clone https://github.com/dbry/WavPack
-              cd WavPack
-              ./autogen.sh
-              sudo make install
-              cd ..
+          # clone wavpack
+          git clone https://github.com/dbry/WavPack
+          cd WavPack
+          ./autogen.sh
+          sudo make install
+          cd ..
       - name: Install dependencies
         run: |
           pip install -e .

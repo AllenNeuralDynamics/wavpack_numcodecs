@@ -49,7 +49,7 @@ class WavPackCodec(Codec):
     supported_dtypes = ["int8", "int16", "int32", "uint8", "uint16", "uint32", "float32"]
 
     def __init__(self, compression_mode="default", 
-                 hybrid_factor=None, cc=False, pair_unassigned=False, 
+                 hybrid_factor=None, pair_unassigned=False, 
                  set_block_size=False, sample_rate=48000, 
                  dtype="int16", use_system_wavpack=False):
         """
@@ -70,8 +70,6 @@ class WavPackCodec(Codec):
             If the hybrid factor is given, the hybrid mode is used and compression is lossy. 
             The hybrid factor is between 2.25 and 24 (it can be a decimal, e.g. 3.5) and it 
             is the average number of bits used to encode each sample, by default None
-        cc : bool, optional
-            Enabless the "maximum hybrid compression" option for hybrid mode, by default False
         pair_unassigned : bool, optional
             Encodes unassigned channels into stereo pairs, by default False
         set_block_size : bool, optional
@@ -93,15 +91,17 @@ class WavPackCodec(Codec):
             * Windows : 256
         """
         self.compression_mode = compression_mode   
-        self.cc = cc 
-        self.hybrid_factor = hybrid_factor
         self.pair_unassigned = pair_unassigned
         self.set_block_size = set_block_size
+        self.hybrid_factor = hybrid_factor
         self.sample_rate = sample_rate
         self.dtype = np.dtype(dtype)
         self.use_system_wavpack = use_system_wavpack
 
         assert self.dtype.name in self.supported_dtypes
+
+        if hybrid_factor is not None:
+            self.hybrid_factor = max(hybrid_factor, 2.25)
 
         # prepare encode base command
         if use_system_wavpack:
@@ -117,8 +117,6 @@ class WavPackCodec(Codec):
             base_enc_cmd += [f"-{compression_mode}"]
         if self.hybrid_factor is not None:
             base_enc_cmd += [f"-b{hybrid_factor}"]
-            if self._cc:
-                base_enc_cmd += ["-cc"]
         if self.pair_unassigned:
             base_enc_cmd += ["--pair-unassigned-chans"]
         self.base_enc_cmd = base_enc_cmd
@@ -131,7 +129,6 @@ class WavPackCodec(Codec):
         return dict(
             id=self.codec_id,
             compression_mode=self.compression_mode,
-            cc=self.cc,
             hybrid_factor=self.hybrid_factor,
             pair_unassigned=self.pair_unassigned,
             set_block_size=self.set_block_size,

@@ -24,8 +24,7 @@ def run_all_options(data):
                     # lossless
                     if hf is None:
                         assert np.all(dec.reshape(data.shape) == data)
-                    else:
-                        assert not np.all(dec.reshape(data.shape) == data)
+                    # no else since if hybrid factor is high, hybrid mode could be lossless
 
 
 def make_noisy_sin_signals(shape=(30000,), sin_f=100, sin_amp=100, noise_amp=10,

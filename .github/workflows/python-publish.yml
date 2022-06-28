@@ -25,6 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install .
+          pip install zarr
           pip install setuptools wheel twine
           pip install pytest
       - name: Test with pytest and build coverage report

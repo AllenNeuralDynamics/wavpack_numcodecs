@@ -24,6 +24,8 @@ cd WavPack
 sudo make install
 ```
 
+**NOTE**: the pre-compiled `linux` library is for a `Linux-5.13.0-44-generic-x86_64-with-glibc2.31` platform.
+
 ## Usage
 
 This is a simple example on how to use the `WavPackCodec` with `zarr`:

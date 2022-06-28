@@ -1,6 +1,7 @@
 from wavpack_numcodecs import WavPackCodec
 import numpy as np
 import zarr
+import platform
 
 
 def run_all_options(data):
@@ -63,6 +64,8 @@ def test_wavpack():
 
 
 def test_zarr():
+    print(f"\n\nPlatform info:\n{platform.system()}\n{platform.architecture()}\n{platform.platform()}\n\n")
+
     dtype = "int16"
     test1d = make_noisy_sin_signals(shape=(30000,))
     test1d_long = make_noisy_sin_signals(shape=(200000,))
@@ -77,34 +80,42 @@ def test_zarr():
         print(f"Signal shape: {test_sig.shape}")
         if test_sig.ndim == 1:
             z = zarr.array(test_sig, chunks=None, compressor=compressor)
+            assert z[:] == test_sig.shape
             assert z[:100].shape == test_sig[:100].shape
             assert z.nbytes_stored < z.nbytes
 
             z = zarr.array(test_sig, chunks=(1000), compressor=compressor)
+            assert z[:].shape == test_sig.shape
             assert z[:100].shape == test_sig[:100].shape
             assert z.nbytes_stored < z.nbytes
         elif test_sig.ndim == 2:
             z = zarr.array(test_sig, chunks=None, compressor=compressor)
+            assert z[:].shape == test_sig.shape
             assert z[:100, :10].shape == test_sig[:100, :10].shape
             assert z.nbytes_stored < z.nbytes
 
             z = zarr.array(test_sig, chunks=(1000, None), compressor=compressor)
+            assert z[:].shape == test_sig.shape
             assert z[:100, :10].shape == test_sig[:100, :10].shape
             assert z.nbytes_stored < z.nbytes
 
             z = zarr.array(test_sig, chunks=(None, 10), compressor=compressor)
+            assert z[:].shape == test_sig.shape
             assert z[:100, :10].shape == test_sig[:100, :10].shape
             assert z.nbytes_stored < z.nbytes
         else: # 3d
             z = zarr.array(test_sig, chunks=None, compressor=compressor)
+            assert z[:].shape == test_sig.shape
             assert z[:100, :2, :2].shape == test_sig[:100, :2, :2].shape
             assert z.nbytes_stored < z.nbytes
 
             z = zarr.array(test_sig, chunks=(1000, 2, None), compressor=compressor)
+            assert z[:].shape == test_sig.shape
             assert z[:100, :2, :2].shape == test_sig[:100, :2, :2].shape
             assert z.nbytes_stored < z.nbytes
 
             z = zarr.array(test_sig, chunks=(None, 2, 3), compressor=compressor)
+            assert z[:].shape == test_sig.shape
             assert z[:100, :2, :2].shape == test_sig[:100, :2, :2].shape
             assert z.nbytes_stored < z.nbytes
 

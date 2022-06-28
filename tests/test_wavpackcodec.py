@@ -64,7 +64,12 @@ def test_wavpack():
 
 
 def test_zarr():
-    print(f"\n\nPlatform info:\n{platform.system()}\n{platform.architecture()}\n{platform.platform()}\n\n")
+    if platform.system() == "Linux":
+        use_system_wavpack = True
+    else:
+        use_system_wavpack = False
+
+    print("USE SYSTEM WAVPACK", use_system_wavpack)
 
     dtype = "int16"
     test1d = make_noisy_sin_signals(shape=(30000,))
@@ -74,7 +79,7 @@ def test_zarr():
     test2d_extra = make_noisy_sin_signals(shape=(30000, 2000))
     test3d = make_noisy_sin_signals(shape=(1000, 10, 10))
 
-    compressor = WavPackCodec(dtype=dtype)
+    compressor = WavPackCodec(dtype=dtype, use_system_wavpack=use_system_wavpack)
 
     for test_sig in [test1d, test1d_long, test2d, test2d_long, test2d_extra, test3d]:
         print(f"Signal shape: {test_sig.shape}")

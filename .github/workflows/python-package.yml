@@ -19,6 +19,18 @@ jobs:
       - uses: s-weigand/setup-conda@v1
         with:
           python-version: 3.9
+      - name: Install WavPack
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+              sudo apt update
+              sudo apt install git 
+
+              # clone wavpack
+              git clone https://github.com/dbry/WavPack
+              cd WavPack
+              ./autogen.sh
+              sudo make install
+              cd ..
       - name: Install dependencies
         run: |
           pip install -e .

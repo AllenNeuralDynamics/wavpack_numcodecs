@@ -1,0 +1,6 @@
+include lib/linux/wavpack
+include lib/linux/wvunpack
+include lib/macos/wavpack
+include lib/macos/wvunpack
+include lib/windows/wavpack.exe
+include lib/windows/wvunpack.exe

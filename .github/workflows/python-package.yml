@@ -19,15 +19,11 @@ jobs:
       - uses: s-weigand/setup-conda@v1
         with:
           python-version: 3.9
-      - name: Which python
-        run: |
-          conda --version
-          which python
       - name: Install dependencies
         run: |
           pip install .
           pip install zarr
           pip install pytest
-      - name: Test with pytest and build coverage report
+      - name: Test with pytest 
         run: |
           pytest

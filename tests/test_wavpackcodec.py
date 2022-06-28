@@ -80,7 +80,7 @@ def test_zarr():
         print(f"Signal shape: {test_sig.shape}")
         if test_sig.ndim == 1:
             z = zarr.array(test_sig, chunks=None, compressor=compressor)
-            assert z[:] == test_sig.shape
+            assert z[:].shape == test_sig.shape
             assert z[:100].shape == test_sig[:100].shape
             assert z.nbytes_stored < z.nbytes
 

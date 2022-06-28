@@ -1,6 +1,8 @@
-import numpy as np
 import subprocess
+import shutil
 import platform
+
+import numpy as np
 from pathlib import Path
 from copy import copy
 
@@ -13,15 +15,34 @@ _max_block_size = 131072
 
 lib_folder = Path(__file__).parent / "lib"
 
-if platform.system() == "Linux":
-    wavpack_lib_cmd = str((lib_folder / "linux" / "wavpack").resolve().absolute())
-    wvunpack_lib_cmd = str((lib_folder / "linux" / "wvunpack").resolve().absolute())
-elif platform.system() == "Darwin":
-    wavpack_lib_cmd = str((lib_folder / "macos" / "wavpack").resolve().absolute())
-    wvunpack_lib_cmd = str((lib_folder / "macos" / "wvunpack").resolve().absolute())
-else: # windows
-    wavpack_lib_cmd = str((lib_folder / "windows" / "wavpack.exe").resolve().absolute())
-    wvunpack_lib_cmd = str((lib_folder / "windows" / "wvunpack.exe").resolve().absolute())
+
+def has_wavpack():
+    wvpack = shutil.which('wavpack')
+    wvunpack = shutil.which('wvunpack')
+    if wvpack is not None and wvunpack is not None:
+        return True
+    else:
+        return False
+
+# here we test if the wavpack command is present in the system. If so, we use that command by default
+if has_wavpack():
+    if platform.system() != "Windows":
+        wavpack_lib_cmd = "wavpack"
+        wvunpack_lib_cmd = "wvunpack"
+    else:
+        wavpack_lib_cmd = "wavpack.exe"
+        wvunpack_lib_cmd = "wvunpack.exe"
+else: # use pre-built libraries
+    if platform.system() == "Linux":
+        wavpack_lib_cmd = str((lib_folder / "linux" / "wavpack").resolve().absolute())
+        wvunpack_lib_cmd = str((lib_folder / "linux" / "wvunpack").resolve().absolute())
+    elif platform.system() == "Darwin":
+        wavpack_lib_cmd = str((lib_folder / "macos" / "wavpack").resolve().absolute())
+        wvunpack_lib_cmd = str((lib_folder / "macos" / "wvunpack").resolve().absolute())
+    elif platform.system() == "Windows": # Windows
+        wavpack_lib_cmd = str((lib_folder / "windows" / "wavpack.exe").resolve().absolute())
+        wvunpack_lib_cmd = str((lib_folder / "windows" / "wvunpack.exe").resolve().absolute())
+
 
 
 class WavPackCodec(Codec):    
@@ -83,6 +104,7 @@ class WavPackCodec(Codec):
 
         # prepare encode base command
         if use_system_wavpack:
+            assert has_wavpack(), "'wavpack' and 'wvunpack' commands not found!"
             wavpack_cmd = "wavpack"
             wvunpack_cmd = "wvunpack"
         else:
@@ -158,10 +180,8 @@ class WavPackCodec(Codec):
         # use pipe
         cmd += ["--raw", "-", "-o", "-"]
         # pipe buffer to wavpack stdin and return decoded in stdout
-        print(cmd)
         wvp = subprocess.run(cmd, input=buf, capture_output=True)
         dec = np.frombuffer(wvp.stdout, dtype=self.dtype)
-        print(len(dec))
         # handle output
         out = ndarray_copy(dec, out)
         

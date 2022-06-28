@@ -4,6 +4,9 @@ import zarr
 import platform
 
 
+dtypes = ["int16", "int32", "uint16", "uint32"] #, "float32"]
+
+
 def run_all_options(data):
     dtype = data.dtype
     for cmode in ["default", "f", "h", "hh"]:
@@ -50,73 +53,74 @@ def make_noisy_sin_signals(shape=(30000, ), sin_f=100, sin_amp=100, noise_amp=10
 
 
 def test_wavpack():
-    # create test signals
-    dtype = "int16"
-    test1d = make_noisy_sin_signals(shape=(30000,))
-    test1d_long = make_noisy_sin_signals(shape=(200000,))
-    test2d = make_noisy_sin_signals(shape=(30000, 100))
-    test2d_long = make_noisy_sin_signals(shape=(200000, 100))
-    test2d_extra = make_noisy_sin_signals(shape=(30000, 2000))
-    test3d = make_noisy_sin_signals(shape=(1000, 10, 10))
+    for dtype in dtypes:
+        print(f"NUMCODECS: testing dtype {dtype}")
+        test1d = make_noisy_sin_signals(shape=(30000,), dtype=dtype)
+        test1d_long = make_noisy_sin_signals(shape=(200000,), dtype=dtype)
+        test2d = make_noisy_sin_signals(shape=(30000, 100), dtype=dtype)
+        test2d_long = make_noisy_sin_signals(shape=(200000, 100), dtype=dtype)
+        test2d_extra = make_noisy_sin_signals(shape=(30000, 2000), dtype=dtype)
+        test3d = make_noisy_sin_signals(shape=(1000, 10, 10), dtype=dtype)
 
-    for test_sig in [test1d, test1d_long, test2d, test2d_long, test2d_extra, test3d]:
-        print(f"NUMCODECS: signal shape: {test_sig.shape}")
-        test_sig = test_sig.astype(dtype)
+        for test_sig in [test1d, test1d_long, test2d, test2d_long, test2d_extra, test3d]:
+            print(f"\tsignal shape: {test_sig.shape}")
+            test_sig = test_sig.astype(dtype)
 
 
 def test_zarr():
-    dtype = "int16"
-    test1d = make_noisy_sin_signals(shape=(30000,))
-    test1d_long = make_noisy_sin_signals(shape=(200000,))
-    test2d = make_noisy_sin_signals(shape=(30000, 100))
-    test2d_long = make_noisy_sin_signals(shape=(200000, 100))
-    test2d_extra = make_noisy_sin_signals(shape=(30000, 2000))
-    test3d = make_noisy_sin_signals(shape=(1000, 10, 10))
+    for dtype in dtypes:
+        print(f"ZARR: testing dtype {dtype}")
+        test1d = make_noisy_sin_signals(shape=(10000,), dtype=dtype)
+        test1d_long = make_noisy_sin_signals(shape=(100000,), dtype=dtype)
+        test2d = make_noisy_sin_signals(shape=(10000, 10), dtype=dtype)
+        test2d_long = make_noisy_sin_signals(shape=(100000, 10), dtype=dtype)
+        test2d_extra = make_noisy_sin_signals(shape=(10000, 300), dtype=dtype)
+        test3d = make_noisy_sin_signals(shape=(100, 5, 5), dtype=dtype)
 
-    compressor = WavPackCodec(dtype=dtype)
+        compressor = WavPackCodec(dtype=dtype)
 
-    for test_sig in [test1d, test1d_long, test2d, test2d_long, test2d_extra, test3d]:
-        print(f"ZARR: signal shape: {test_sig.shape}")
-        if test_sig.ndim == 1:
-            z = zarr.array(test_sig, chunks=None, compressor=compressor)
-            assert z[:].shape == test_sig.shape
-            assert z[:100].shape == test_sig[:100].shape
-            assert z.nbytes_stored < z.nbytes
+        for test_sig in [test1d, test1d_long, test2d, test2d_long, test2d_extra, test3d]:
+            print(f"\tsignal shape: {test_sig.shape}")
+            if test_sig.ndim == 1:
+                z = zarr.array(test_sig, chunks=None, compressor=compressor)
+                assert z[:].shape == test_sig.shape
+                assert z[:100].shape == test_sig[:100].shape
+                assert z.nbytes_stored < z.nbytes
 
-            z = zarr.array(test_sig, chunks=(1000), compressor=compressor)
-            assert z[:].shape == test_sig.shape
-            assert z[:100].shape == test_sig[:100].shape
-            assert z.nbytes_stored < z.nbytes
-        elif test_sig.ndim == 2:
-            z = zarr.array(test_sig, chunks=None, compressor=compressor)
-            assert z[:].shape == test_sig.shape
-            assert z[:100, :10].shape == test_sig[:100, :10].shape
-            assert z.nbytes_stored < z.nbytes
+                z = zarr.array(test_sig, chunks=(1000), compressor=compressor)
+                assert z[:].shape == test_sig.shape
+                assert z[:100].shape == test_sig[:100].shape
+                assert z.nbytes_stored < z.nbytes
+            elif test_sig.ndim == 2:
+                z = zarr.array(test_sig, chunks=None, compressor=compressor)
+                assert z[:].shape == test_sig.shape
+                assert z[:100, :5].shape == test_sig[:100, :5].shape
+                assert z.nbytes_stored < z.nbytes
 
-            z = zarr.array(test_sig, chunks=(1000, None), compressor=compressor)
-            assert z[:].shape == test_sig.shape
-            assert z[:100, :10].shape == test_sig[:100, :10].shape
-            assert z.nbytes_stored < z.nbytes
+                z = zarr.array(test_sig, chunks=(1000, None), compressor=compressor)
+                assert z[:].shape == test_sig.shape
+                assert z[:100, :5].shape == test_sig[:100, :5].shape
+                assert z.nbytes_stored < z.nbytes
 
-            z = zarr.array(test_sig, chunks=(None, 10), compressor=compressor)
-            assert z[:].shape == test_sig.shape
-            assert z[:100, :10].shape == test_sig[:100, :10].shape
-            assert z.nbytes_stored < z.nbytes
-        else: # 3d
-            z = zarr.array(test_sig, chunks=None, compressor=compressor)
-            assert z[:].shape == test_sig.shape
-            assert z[:100, :2, :2].shape == test_sig[:100, :2, :2].shape
-            assert z.nbytes_stored < z.nbytes
+                z = zarr.array(test_sig, chunks=(None, 10), compressor=compressor)
+                assert z[:].shape == test_sig.shape
+                assert z[:100, :5].shape == test_sig[:100, :5].shape
+                assert z.nbytes_stored < z.nbytes
+            else: # 3d
+                z = zarr.array(test_sig, chunks=None, compressor=compressor)
+                assert z[:].shape == test_sig.shape
+                assert z[:30, :2, :2].shape == test_sig[:30, :2, :2].shape
+                assert z.nbytes_stored < z.nbytes
 
-            z = zarr.array(test_sig, chunks=(1000, 2, None), compressor=compressor)
-            assert z[:].shape == test_sig.shape
-            assert z[:100, :2, :2].shape == test_sig[:100, :2, :2].shape
-            assert z.nbytes_stored < z.nbytes
+                z = zarr.array(test_sig, chunks=(1000, 2, None), compressor=compressor)
+                assert z[:].shape == test_sig.shape
+                assert z[:30, :2, :2].shape == test_sig[:30, :2, :2].shape
+                assert z.nbytes_stored < z.nbytes
 
-            z = zarr.array(test_sig, chunks=(None, 2, 3), compressor=compressor)
-            assert z[:].shape == test_sig.shape
-            assert z[:100, :2, :2].shape == test_sig[:100, :2, :2].shape
-            assert z.nbytes_stored < z.nbytes
+                z = zarr.array(test_sig, chunks=(None, 2, 3), compressor=compressor)
+                assert z[:].shape == test_sig.shape
+                assert z[:30, :2, :2].shape == test_sig[:30, :2, :2].shape
+                assert z.nbytes_stored < z.nbytes
 
 
 if __name__ == '__main__':

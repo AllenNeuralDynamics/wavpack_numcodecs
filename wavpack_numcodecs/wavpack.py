@@ -10,9 +10,6 @@ from numcodecs.abc import Codec
 from numcodecs.compat import ndarray_copy
 
 
-_max_block_size = 131072
-
-
 lib_folder = Path(__file__).parent / "lib"
 
 
@@ -48,7 +45,9 @@ else: # use pre-built libraries
 class WavPackCodec(Codec):    
     codec_id = "wavpack"
     max_channels = 1024
-    
+    max_block_size = 131072
+    supported_dtypes = ["int8", "int16", "int32", "uint8", "uint16", "uint32", "float32"]
+
     def __init__(self, compression_mode="default", 
                  hybrid_factor=None, cc=False, pair_unassigned=False, 
                  set_block_size=False, sample_rate=48000, 
@@ -99,8 +98,10 @@ class WavPackCodec(Codec):
         self.pair_unassigned = pair_unassigned
         self.set_block_size = set_block_size
         self.sample_rate = sample_rate
-        self.dtype = dtype
+        self.dtype = np.dtype(dtype)
         self.use_system_wavpack = use_system_wavpack
+
+        assert self.dtype.name in self.supported_dtypes
 
         # prepare encode base command
         if use_system_wavpack:
@@ -135,7 +136,7 @@ class WavPackCodec(Codec):
             pair_unassigned=self.pair_unassigned,
             set_block_size=self.set_block_size,
             sample_rate=self.sample_rate,
-            dtype=self.dtype,
+            dtype=str(self.dtype),
             use_system_wavpack=self.use_system_wavpack
         )
 
@@ -163,10 +164,13 @@ class WavPackCodec(Codec):
         nbits = int(data.dtype.itemsize * 8)
 
         if self.set_block_size:
-            blocksize = min(nsamples, _max_block_size)
+            blocksize = min(nsamples, self.max_block_size)
             cmd += [f"--blocksize={blocksize}"]
         
-        cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits},{nchans}"]
+        if self.dtype.kind != "f":
+            cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits},{nchans}"]
+        else:
+            cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits}[f],{nchans}"]
         cmd += ["-q", "-", "-o", "-"] 
         # pipe buffer to wavpack stdin and return encoded in stdout
         wavenc = subprocess.run(cmd, input=data.tobytes(), capture_output=True)

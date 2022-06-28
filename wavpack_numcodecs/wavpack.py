@@ -1,10 +1,3 @@
-"""
-Numcodecs Codec implementation for WavPack (https://www.wavpack.com/) codec.
-
-**implementation detils**
-
-Multi-channel data exceeding the number of channels (or more than 2d) are flattened.
-"""
 import numpy as np
 import subprocess
 import platform
@@ -14,45 +7,69 @@ from numcodecs.abc import Codec
 from numcodecs.compat import ndarray_copy
 
 
+_max_block_size = 131072
+
+
 lib_folder = Path(__file__).parent.parent / "lib"
 
 if platform.system() == "Linux":
-    wavpack_cmd = str((lib_folder / "linux" / "wavpack").resolve().absolute())
-    wvunpack_cmd = str((lib_folder / "linux" / "wvunpack").resolve().absolute())
+    wavpack_lib_cmd = str((lib_folder / "linux" / "wavpack").resolve().absolute())
+    wvunpack_lib_cmd = str((lib_folder / "linux" / "wvunpack").resolve().absolute())
 elif platform.system() == "macOS":
-    wavpack_cmd = str((lib_folder / "macos" / "wavpack").resolve().absolute())
-    wvunpack_cmd = str((lib_folder / "macos" / "wvunpack").resolve().absolute())
+    wavpack_lib_cmd = str((lib_folder / "macos" / "wavpack").resolve().absolute())
+    wvunpack_lib_cmd = str((lib_folder / "macos" / "wvunpack").resolve().absolute())
 else: # windows
-    wavpack_cmd = str((lib_folder / "windows" / "wavpack.exe").resolve().absolute())
-    wvunpack_cmd = str((lib_folder / "windows" / "wvunpack.exe").resolve().absolute())
+    wavpack_lib_cmd = str((lib_folder / "windows" / "wavpack.exe").resolve().absolute())
+    wvunpack_lib_cmd = str((lib_folder / "windows" / "wvunpack.exe").resolve().absolute())
 
 
-class WavPackPipesCodec(Codec):    
-    codec_id = "wavpackpipe"
+class WavPackCodec(Codec):    
+    codec_id = "wavpack"
     max_channels = 1024
     
     def __init__(self, compression_mode="default", 
                  hybrid_factor=None, cc=False, pair_unassigned=False, 
                  set_block_size=False, sample_rate=48000, 
-                 dtype="int16"):
-        """_summary_
+                 dtype="int16", use_system_wavpack=False):
+        """
+        Numcodecs Codec implementation for WavPack (https://www.wavpack.com/) codec.
+
+        The implementation uses the "wavpack" and "wvunpack" CLI (for encoding and decoding, respectively),
+        and uses pipes to transfer input and output streams between processes. 
+
+        2D buffers exceeding the supported number of channels (buffer's second dimension) and 
+        buffers > 2D are flattened before compression.
+
 
         Parameters
         ----------
         compression_mode : str, optional
-            _description_, by default "default"
-        hybrid_factor : _type_, optional
-            _description_, by default None
+            The wavpack compression mode ("default", "f", "h", "hh"), by default "default"
+        hybrid_factor : float or None, optional
+            If the hybrid factor is given, the hybrid mode is used and compression is lossy. 
+            The hybrid factor is between 2.25 and 24 (it can be a decimal, e.g. 3.5) and it 
+            is the average number of bits used to encode each sample, by default None
         cc : bool, optional
-            _description_, by default False
+            Enabless the "maximum hybrid compression" option for hybrid mode, by default False
         pair_unassigned : bool, optional
-            _description_, by default False
+            Encodes unassigned channels into stereo pairs, by default False
         set_block_size : bool, optional
-            _description_, by default False
+            If True, it tries to fit all the data in one block (max 131072), by default False
         sample_rate : int, optional
-            _description_, by default 48000
+            The sample rate that wavpack internally uses, by default 48000
         dtype : str, optional
-            _description_, by default "int16"
+            The target data type for the compressor. Note that this needs to be specified at
+            instantiation, by default "int16"
+        use_system_wavpack : bool
+            If True, the codec uses the system's "wavpack" and "wvunpack" commands, by default False
+
+        Notes
+        -----
+        The binaries shipped with the package support a different maximum number of channels for 
+        different OSs:
+            * Linux : 1024
+            * macOS : 256
+            * Windows : 256
         """
         self.compression_mode = compression_mode   
         self.cc = cc 
@@ -61,8 +78,16 @@ class WavPackPipesCodec(Codec):
         self.set_block_size = set_block_size
         self.sample_rate = sample_rate
         self.dtype = dtype
+        self.use_system_wavpack = use_system_wavpack
 
         # prepare encode base command
+        if use_system_wavpack:
+            wavpack_cmd = "wavpack"
+            wvunpack_cmd = "wvunpack"
+        else:
+            wavpack_cmd = wavpack_lib_cmd
+            wvunpack_cmd = wvunpack_lib_cmd
+
         base_enc_cmd = [wavpack_cmd, "-y"]
         if self.compression_mode in ["f", "h", "hh"]:
             base_enc_cmd += [f"-{compression_mode}"]
@@ -88,6 +113,7 @@ class WavPackPipesCodec(Codec):
             set_block_size=self.set_block_size,
             sample_rate=self.sample_rate,
             dtype=self.dtype,
+            use_system_wavpack=self.use_system_wavpack
         )
 
     def _prepare_data(self, buf):
@@ -114,7 +140,7 @@ class WavPackPipesCodec(Codec):
         nbits = int(data.dtype.itemsize * 8)
 
         if self.set_block_size:
-            blocksize = min(nsamples, 131072)
+            blocksize = min(nsamples, _max_block_size)
             cmd += [f"--blocksize={blocksize}"]
         
         cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits},{nchans}"]

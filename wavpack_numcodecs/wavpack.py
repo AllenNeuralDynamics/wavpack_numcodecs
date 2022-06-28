@@ -158,9 +158,10 @@ class WavPackCodec(Codec):
         # use pipe
         cmd += ["--raw", "-", "-o", "-"]
         # pipe buffer to wavpack stdin and return decoded in stdout
+        print(cmd)
         wvp = subprocess.run(cmd, input=buf, capture_output=True)
         dec = np.frombuffer(wvp.stdout, dtype=self.dtype)
-
+        print(len(dec))
         # handle output
         out = ndarray_copy(dec, out)
         

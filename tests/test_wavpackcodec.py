@@ -74,7 +74,7 @@ def test_zarr():
     compressor = WavPackCodec(dtype=dtype)
 
     for test_sig in [test1d, test1d_long, test2d, test2d_long, test2d_extra, test3d]:
-        print(test_sig.shape)
+        print(f"Signal shape: {test_sig.shape}")
         if test_sig.ndim == 1:
             z = zarr.array(test_sig, chunks=None, compressor=compressor)
             assert z[:100].shape == test_sig[:100].shape

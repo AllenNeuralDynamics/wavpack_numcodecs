@@ -16,7 +16,7 @@ lib_folder = Path(__file__).parent / "lib"
 if platform.system() == "Linux":
     wavpack_lib_cmd = str((lib_folder / "linux" / "wavpack").resolve().absolute())
     wvunpack_lib_cmd = str((lib_folder / "linux" / "wvunpack").resolve().absolute())
-elif platform.system() == "macOS":
+elif platform.system() == "Darwin":
     wavpack_lib_cmd = str((lib_folder / "macos" / "wavpack").resolve().absolute())
     wvunpack_lib_cmd = str((lib_folder / "macos" / "wvunpack").resolve().absolute())
 else: # windows

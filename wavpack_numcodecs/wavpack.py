@@ -2,6 +2,7 @@ import numpy as np
 import subprocess
 import platform
 from pathlib import Path
+from copy import copy
 
 from numcodecs.abc import Codec
 from numcodecs.compat import ndarray_copy
@@ -10,7 +11,7 @@ from numcodecs.compat import ndarray_copy
 _max_block_size = 131072
 
 
-lib_folder = Path(__file__).parent.parent / "lib"
+lib_folder = Path(__file__).parent / "lib"
 
 if platform.system() == "Linux":
     wavpack_lib_cmd = str((lib_folder / "linux" / "wavpack").resolve().absolute())
@@ -134,7 +135,7 @@ class WavPackCodec(Codec):
         return data
 
     def encode(self, buf):
-        cmd = self.base_enc_cmd
+        cmd = copy(self.base_enc_cmd)
         data = self._prepare_data(buf)
         nsamples, nchans = data.shape
         nbits = int(data.dtype.itemsize * 8)
@@ -152,14 +153,14 @@ class WavPackCodec(Codec):
         return enc
 
     def decode(self, buf, out=None):        
-        cmd = self.base_dec_cmd
+        cmd = copy(self.base_dec_cmd)
 
         # use pipe
         cmd += ["--raw", "-", "-o", "-"]
         # pipe buffer to wavpack stdin and return decoded in stdout
         wvp = subprocess.run(cmd, input=buf, capture_output=True)
         dec = np.frombuffer(wvp.stdout, dtype=self.dtype)
-        
+
         # handle output
         out = ndarray_copy(dec, out)
         

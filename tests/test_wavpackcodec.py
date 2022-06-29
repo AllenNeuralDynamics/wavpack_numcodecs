@@ -1,11 +1,11 @@
 from wavpack_numcodecs import WavPackCodec
 import numpy as np
 import zarr
-import platform
+import pytest
 
+DEBUG = False
 
-dtypes = ["int16", "int32", "uint16", "uint32"] #"float32"
-
+dtypes = ["int16", "int32", "uint16", "uint32"] #"float32"] 
 
 def run_all_options(data):
     dtype = data.dtype
@@ -14,7 +14,8 @@ def run_all_options(data):
             for sb in [False, True]:
                 for hf in [None, 6, 4, 2]:
                     cod = WavPackCodec(compression_mode=cmode, pair_unassigned=pair, 
-                                       hybrid_factor=hf, set_block_size=sb, dtype=dtype)
+                                       hybrid_factor=hf, set_block_size=sb, dtype=dtype,
+                                       debug=DEBUG)
                     enc = cod.encode(data)
                     dec = cod.decode(enc)
 
@@ -61,9 +62,10 @@ def generate_test_signals(dtype):
 
     return [test1d, test1d_long, test2d, test2d_long, test2d_extra, test3d]
 
+@pytest.mark.numcodecs
 def test_wavpack_numcodecs():
     for dtype in dtypes:
-        print(f"NUMCODECS: testing dtype {dtype}")
+        print(f"\n\nNUMCODECS: testing dtype {dtype}\n\n")
 
         test_signals = generate_test_signals(dtype)
 
@@ -71,13 +73,13 @@ def test_wavpack_numcodecs():
             print(f"\tsignal shape: {test_sig.shape}")
             run_all_options(test_sig)
 
-
+@pytest.mark.zarr
 def test_wavpack_zarr():
     for dtype in dtypes:
-        print(f"ZARR: testing dtype {dtype}")
+        print(f"\n\nZARR: testing dtype {dtype}\n\n")
         test_signals = generate_test_signals(dtype)
 
-        compressor = WavPackCodec(dtype=dtype)
+        compressor = WavPackCodec(dtype=dtype, debug=DEBUG)
 
         for test_sig in test_signals:
             print(f"\tsignal shape: {test_sig.shape}")
@@ -125,4 +127,4 @@ def test_wavpack_zarr():
 
 if __name__ == '__main__':
     test_wavpack_numcodecs()
-    test_wavpack_zarr()
+    # test_wavpack_zarr()

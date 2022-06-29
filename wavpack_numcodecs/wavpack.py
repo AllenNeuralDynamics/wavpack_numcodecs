@@ -51,7 +51,8 @@ class WavPackCodec(Codec):
     def __init__(self, compression_mode="default", 
                  hybrid_factor=None, pair_unassigned=False, 
                  set_block_size=False, sample_rate=48000, 
-                 dtype="int16", use_system_wavpack=False):
+                 dtype="int16", use_system_wavpack=False,
+                 debug=False):
         """
         Numcodecs Codec implementation for WavPack (https://www.wavpack.com/) codec.
 
@@ -81,6 +82,8 @@ class WavPackCodec(Codec):
             instantiation, by default "int16"
         use_system_wavpack : bool
             If True, the codec uses the system's "wavpack" and "wvunpack" commands, by default False
+        debug : bool
+            If True, prints debug commands
 
         Notes
         -----
@@ -97,6 +100,7 @@ class WavPackCodec(Codec):
         self.sample_rate = sample_rate
         self.dtype = np.dtype(dtype)
         self.use_system_wavpack = use_system_wavpack
+        self.debug = debug
 
         assert self.dtype.name in self.supported_dtypes
 
@@ -167,11 +171,19 @@ class WavPackCodec(Codec):
         if self.dtype.kind != "f":
             cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits},{nchans}"]
         else:
-            cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits}[f],{nchans}"]
+            cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits}f,{nchans}"]
         cmd += ["-q", "-", "-o", "-"] 
+        
+        if self.debug:
+            print(" ".join(cmd))
+        
         # pipe buffer to wavpack stdin and return encoded in stdout
         wavenc = subprocess.run(cmd, input=data.tobytes(), capture_output=True)
-        enc = wavenc.stdout
+        
+        if wavenc.returncode == 0:
+            enc = wavenc.stdout
+        else:
+            raise RuntimeError(f"wavpack encode failed with error: {wavenc.stderr}")
         
         return enc
 
@@ -180,9 +192,18 @@ class WavPackCodec(Codec):
 
         # use pipe
         cmd += ["--raw", "-", "-o", "-"]
+        
+        if self.debug:
+            print(" ".join(cmd))
+
         # pipe buffer to wavpack stdin and return decoded in stdout
-        wvp = subprocess.run(cmd, input=buf, capture_output=True)
-        dec = np.frombuffer(wvp.stdout, dtype=self.dtype)
+        wvdec = subprocess.run(cmd, input=buf, capture_output=True)
+        
+        if wvdec.returncode == 0:
+            dec = np.frombuffer(wvdec.stdout, dtype=self.dtype)
+        else:
+            raise RuntimeError(f"wavpack encode failed with error: {wvdec.stderr}")
+        
         # handle output
         out = ndarray_copy(dec, out)
         

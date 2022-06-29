@@ -5,7 +5,7 @@ import pytest
 
 DEBUG = False
 
-dtypes = ["int16", "int32", "uint16", "uint32"] #"float32"] 
+dtypes = ["int16", "int32", "uint16", "uint32", "float32"]
 
 def run_all_options(data):
     dtype = data.dtype
@@ -19,8 +19,8 @@ def run_all_options(data):
                     enc = cod.encode(data)
                     dec = cod.decode(enc)
 
-                    # this might not hold for pure random
-                    assert len(enc) < len(dec)
+                    if np.dtype(dtype).kind != "f":
+                        assert len(enc) < len(dec)
 
                     # lossless
                     if hf is None:
@@ -57,7 +57,7 @@ def generate_test_signals(dtype):
     test1d_long = make_noisy_sin_signals(shape=(200000,), dtype=dtype)
     test2d = make_noisy_sin_signals(shape=(3000, 10), dtype=dtype)
     test2d_long = make_noisy_sin_signals(shape=(200000, 4), dtype=dtype)
-    test2d_extra = make_noisy_sin_signals(shape=(3000, 1030), dtype=dtype)
+    test2d_extra = make_noisy_sin_signals(shape=(3000, 300), dtype=dtype)
     test3d = make_noisy_sin_signals(shape=(1000, 5, 5), dtype=dtype)
 
     return [test1d, test1d_long, test2d, test2d_long, test2d_extra, test3d]
@@ -87,44 +87,52 @@ def test_wavpack_zarr():
                 z = zarr.array(test_sig, chunks=None, compressor=compressor)
                 assert z[:].shape == test_sig.shape
                 assert z[:100].shape == test_sig[:100].shape
-                assert z.nbytes_stored < z.nbytes
+                if np.dtype(dtype).kind != "f":
+                    assert z.nbytes_stored < z.nbytes
 
                 z = zarr.array(test_sig, chunks=(1000), compressor=compressor)
                 assert z[:].shape == test_sig.shape
                 assert z[:100].shape == test_sig[:100].shape
-                assert z.nbytes_stored < z.nbytes
+                if np.dtype(dtype).kind != "f":
+                    assert z.nbytes_stored < z.nbytes
             elif test_sig.ndim == 2:
                 z = zarr.array(test_sig, chunks=None, compressor=compressor)
                 assert z[:].shape == test_sig.shape
                 assert z[:100, :10].shape == test_sig[:100, :10].shape
-                assert z.nbytes_stored < z.nbytes
+                if np.dtype(dtype).kind != "f":
+                    assert z.nbytes_stored < z.nbytes
 
                 z = zarr.array(test_sig, chunks=(1000, None), compressor=compressor)
                 assert z[:].shape == test_sig.shape
                 assert z[:100, :10].shape == test_sig[:100, :10].shape
-                assert z.nbytes_stored < z.nbytes
+                if np.dtype(dtype).kind != "f":
+                    assert z.nbytes_stored < z.nbytes
 
                 z = zarr.array(test_sig, chunks=(None, 10), compressor=compressor)
                 assert z[:].shape == test_sig.shape
                 assert z[:100, :10].shape == test_sig[:100, :10].shape
-                assert z.nbytes_stored < z.nbytes
+                if np.dtype(dtype).kind != "f":
+                    assert z.nbytes_stored < z.nbytes
             else: # 3d
                 z = zarr.array(test_sig, chunks=None, compressor=compressor)
                 assert z[:].shape == test_sig.shape
                 assert z[:100, :2, :2].shape == test_sig[:100, :2, :2].shape
-                assert z.nbytes_stored < z.nbytes
+                if np.dtype(dtype).kind != "f":
+                    assert z.nbytes_stored < z.nbytes
 
                 z = zarr.array(test_sig, chunks=(1000, 2, None), compressor=compressor)
                 assert z[:].shape == test_sig.shape
                 assert z[:100, :2, :2].shape == test_sig[:100, :2, :2].shape
-                assert z.nbytes_stored < z.nbytes
+                if np.dtype(dtype).kind != "f":
+                    assert z.nbytes_stored < z.nbytes
 
                 z = zarr.array(test_sig, chunks=(None, 2, 3), compressor=compressor)
                 assert z[:].shape == test_sig.shape
                 assert z[:100, :2, :2].shape == test_sig[:100, :2, :2].shape
-                assert z.nbytes_stored < z.nbytes
+                if np.dtype(dtype).kind != "f":
+                    assert z.nbytes_stored < z.nbytes
 
 
 if __name__ == '__main__':
     test_wavpack_numcodecs()
-    # test_wavpack_zarr()
+    test_wavpack_zarr()

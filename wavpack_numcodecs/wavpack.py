@@ -116,7 +116,7 @@ class WavPackCodec(Codec):
             wavpack_cmd = wavpack_lib_cmd
             wvunpack_cmd = wvunpack_lib_cmd
 
-        base_enc_cmd = [wavpack_cmd, "-y", "-i"]
+        base_enc_cmd = [wavpack_cmd, "-y"]
         if self.compression_mode in ["f", "h", "hh"]:
             base_enc_cmd += [f"-{compression_mode}"]
         if self.hybrid_factor is not None:

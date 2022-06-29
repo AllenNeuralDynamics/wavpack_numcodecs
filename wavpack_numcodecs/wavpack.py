@@ -183,7 +183,7 @@ class WavPackCodec(Codec):
         if wavenc.returncode == 0:
             enc = wavenc.stdout
         else:
-            raise RuntimeError(f"wavpack encode failed with error: {wavenc.stderr}")
+            raise RuntimeError(f"'wavpack' command {' '.join(cmd)} failed with error: {wavenc.stderr}")
         
         return enc
 
@@ -202,7 +202,7 @@ class WavPackCodec(Codec):
         if wvdec.returncode == 0:
             dec = np.frombuffer(wvdec.stdout, dtype=self.dtype)
         else:
-            raise RuntimeError(f"wavpack encode failed with error: {wvdec.stderr}")
+            raise RuntimeError(f"'wvunpack' command {' '.join(cmd)} failed with error: {wvdec.stderr}")
         
         # handle output
         out = ndarray_copy(dec, out)

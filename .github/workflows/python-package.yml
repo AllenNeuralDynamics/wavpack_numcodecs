@@ -2,7 +2,7 @@ name: Python Package using Conda
 
 on:
   pull_request:
-    branches: [master]
+    branches: [main]
     types: [synchronize, opened, reopened, ready_for_review]
 
 
@@ -19,15 +19,24 @@ jobs:
       - uses: s-weigand/setup-conda@v1
         with:
           python-version: 3.9
-      - name: Which python
+      - name: Install WavPack
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          conda --version
-          which python
+          sudo apt update
+          sudo apt install git 
+          sudo apt install -y gettext
+
+          # clone wavpack
+          git clone https://github.com/dbry/WavPack
+          cd WavPack
+          ./autogen.sh
+          sudo make install
+          cd ..
       - name: Install dependencies
         run: |
-          pip install .
+          pip install -e .
           pip install zarr
           pip install pytest
-      - name: Test with pytest and build coverage report
+      - name: Test with pytest 
         run: |
-          pytest
+          pytest -v

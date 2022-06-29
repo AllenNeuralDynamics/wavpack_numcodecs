@@ -1,65 +1,148 @@
-"""
-Numcodecs Codec implementation for WavPack codec:
-    
-The (sub-optimal) approach is:
-- for compression: to convert to the audio file and read it as the encoded bytes
-- for decompression: dump the encoded data to a tmp file and decode it using the codec
-
-Multi-channel data exceeding the number of channels that can be encoded by the codec are reshaped to fit the 
-compression procedure.
-
-"""
-import numpy as np
 import subprocess
+import shutil
+import platform
 
+import numpy as np
+from pathlib import Path
+from copy import copy
 
 from numcodecs.abc import Codec
 from numcodecs.compat import ndarray_copy
 
 
-##### NUMCODECS CODECS ######
-class WavPackPipesCodec(Codec):    
-    codec_id = "wavpackpipe"
-    max_channels = 1024
-    
+lib_folder = Path(__file__).parent / "lib"
+
+
+def has_wavpack():
+    wvpack = shutil.which('wavpack')
+    wvunpack = shutil.which('wvunpack')
+    if wvpack is not None and wvunpack is not None:
+        return True
+    else:
+        return False
+
+# here we test if the wavpack command is present in the system. If so, we use that command by default
+if has_wavpack():
+    if platform.system() != "Windows":
+        wavpack_lib_cmd = "wavpack"
+        wvunpack_lib_cmd = "wvunpack"
+    else:
+        wavpack_lib_cmd = "wavpack.exe"
+        wvunpack_lib_cmd = "wvunpack.exe"
+else: # use pre-built libraries
+    if platform.system() == "Linux":
+        wavpack_lib_cmd = str((lib_folder / "linux" / "wavpack").resolve().absolute())
+        wvunpack_lib_cmd = str((lib_folder / "linux" / "wvunpack").resolve().absolute())
+    elif platform.system() == "Darwin":
+        wavpack_lib_cmd = str((lib_folder / "macos" / "wavpack").resolve().absolute())
+        wvunpack_lib_cmd = str((lib_folder / "macos" / "wvunpack").resolve().absolute())
+    elif platform.system() == "Windows": # Windows
+        wavpack_lib_cmd = str((lib_folder / "windows" / "wavpack.exe").resolve().absolute())
+        wvunpack_lib_cmd = str((lib_folder / "windows" / "wvunpack.exe").resolve().absolute())
+
+
+
+class WavPackCodec(Codec):    
+    codec_id = "wavpack"
+    max_channels = 256
+    max_block_size = 131072
+    supported_dtypes = ["int8", "int16", "int32", "uint8", "uint16", "uint32", "float32"]
+
     def __init__(self, compression_mode="default", 
-                 hybrid_factor=None, cc=False, pair_unassigned=False, 
+                 hybrid_factor=None, pair_unassigned=False, 
                  set_block_size=False, sample_rate=48000, 
-                 dtype="int16"):
+                 dtype="int16", use_system_wavpack=False,
+                 debug=False):
+        """
+        Numcodecs Codec implementation for WavPack (https://www.wavpack.com/) codec.
+
+        The implementation uses the "wavpack" and "wvunpack" CLI (for encoding and decoding, respectively),
+        and uses pipes to transfer input and output streams between processes. 
+
+        2D buffers exceeding the supported number of channels (buffer's second dimension) and 
+        buffers > 2D are flattened before compression.
+
+
+        Parameters
+        ----------
+        compression_mode : str, optional
+            The wavpack compression mode ("default", "f", "h", "hh"), by default "default"
+        hybrid_factor : float or None, optional
+            If the hybrid factor is given, the hybrid mode is used and compression is lossy. 
+            The hybrid factor is between 2.25 and 24 (it can be a decimal, e.g. 3.5) and it 
+            is the average number of bits used to encode each sample, by default None
+        pair_unassigned : bool, optional
+            Encodes unassigned channels into stereo pairs, by default False
+        set_block_size : bool, optional
+            If True, it tries to fit all the data in one block (max 131072), by default False
+        sample_rate : int, optional
+            The sample rate that wavpack internally uses, by default 48000
+        dtype : str, optional
+            The target data type for the compressor. Note that this needs to be specified at
+            instantiation, by default "int16"
+        use_system_wavpack : bool
+            If True, the codec uses the system's "wavpack" and "wvunpack" commands, by default False
+        debug : bool
+            If True, prints debug commands
+
+        Notes
+        -----
+        The binaries shipped with the package support a different maximum number of channels for 
+        different OSs:
+            * Linux : 1024 (default 256)
+            * macOS : 256
+            * Windows : 256
+        """
         self.compression_mode = compression_mode   
-        self.cc = cc 
-        self.hybrid_factor = hybrid_factor
         self.pair_unassigned = pair_unassigned
         self.set_block_size = set_block_size
+        self.hybrid_factor = hybrid_factor
         self.sample_rate = sample_rate
-        self.dtype = dtype
+        self.dtype = np.dtype(dtype)
+        self.use_system_wavpack = use_system_wavpack
+        self.debug = debug
+
+        assert self.dtype.name in self.supported_dtypes
+
+        if hybrid_factor is not None:
+            self.hybrid_factor = max(hybrid_factor, 2.25)
 
         # prepare encode base command
-        base_enc_cmd = ["wavpack", "-y"]
+        if use_system_wavpack:
+            assert has_wavpack(), "'wavpack' and 'wvunpack' commands not found!"
+            wavpack_cmd = "wavpack"
+            wvunpack_cmd = "wvunpack"
+        else:
+            wavpack_cmd = wavpack_lib_cmd
+            wvunpack_cmd = wvunpack_lib_cmd
+
+        base_enc_cmd = [wavpack_cmd, "-y"]
         if self.compression_mode in ["f", "h", "hh"]:
             base_enc_cmd += [f"-{compression_mode}"]
         if self.hybrid_factor is not None:
             base_enc_cmd += [f"-b{hybrid_factor}"]
-            if self._cc:
-                base_enc_cmd += ["-cc"]
         if self.pair_unassigned:
             base_enc_cmd += ["--pair-unassigned-chans"]
         self.base_enc_cmd = base_enc_cmd
 
         # prepare decode base command
-        self.base_dec_cmd = ["wvunpack", "-y", "-q"]
+        self.base_dec_cmd = [wvunpack_cmd, "-y", "-q"]
+        
+    @staticmethod
+    def set_max_cli_channels(max_cli_channels):
+        WavPackCodec.max_channels = max_cli_channels
 
     def get_config(self):
         # override to handle encoding dtypes
         return dict(
             id=self.codec_id,
             compression_mode=self.compression_mode,
-            cc=self.cc,
             hybrid_factor=self.hybrid_factor,
             pair_unassigned=self.pair_unassigned,
             set_block_size=self.set_block_size,
             sample_rate=self.sample_rate,
-            dtype=self.dtype,
+            dtype=str(self.dtype),
+            use_system_wavpack=self.use_system_wavpack
         )
 
     def _prepare_data(self, buf):
@@ -80,32 +163,50 @@ class WavPackPipesCodec(Codec):
         return data
 
     def encode(self, buf):
-        cmd = self.base_enc_cmd
+        cmd = copy(self.base_enc_cmd)
         data = self._prepare_data(buf)
+        if self.debug:
+            print(f"Data shape: {data.shape}")
         nsamples, nchans = data.shape
         nbits = int(data.dtype.itemsize * 8)
 
         if self.set_block_size:
-            blocksize = min(nsamples, 131072)
+            blocksize = min(nsamples, self.max_block_size)
             cmd += [f"--blocksize={blocksize}"]
         
-        cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits},{nchans}"]
+        if self.dtype.kind != "f":
+            cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits},{nchans}"]
+        else:
+            cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits}f,{nchans}"]
         cmd += ["-q", "-", "-o", "-"] 
-        print(" ".join(cmd))
-        # pipe buffer to wavpack stdin and return stdout
+        
+        if self.debug:
+            print(" ".join(cmd))
+        
+        # pipe buffer to wavpack stdin and return encoded in stdout
         wavenc = subprocess.run(cmd, input=data.tobytes(), capture_output=True)
         enc = wavenc.stdout
+        
+        if wavenc.returncode != 0 and len(enc) == 0:
+            raise RuntimeError(f"'wavpack' command \"{' '.join(cmd)}\" failed with error: {wavenc.stderr}")
         
         return enc
 
     def decode(self, buf, out=None):        
-        cmd = self.base_dec_cmd
+        cmd = copy(self.base_dec_cmd)
 
         # use pipe
         cmd += ["--raw", "-", "-o", "-"]
-        print(" ".join(cmd))
-        wvp = subprocess.run(cmd, input=buf, capture_output=True)
-        dec = np.frombuffer(wvp.stdout, dtype=self.dtype)
+        
+        if self.debug:
+            print(" ".join(cmd))
+
+        # pipe buffer to wavpack stdin and return decoded in stdout
+        wvdec = subprocess.run(cmd, input=buf, capture_output=True)
+        dec = np.frombuffer(wvdec.stdout, dtype=self.dtype)
+        
+        if wvdec.returncode != 0 and len(dec) == 0:
+            raise RuntimeError(f"'wvunpack' command \"{' '.join(cmd)}\" failed with error: {wvdec.stderr}")
         
         # handle output
         out = ndarray_copy(dec, out)
@@ -113,131 +214,19 @@ class WavPackPipesCodec(Codec):
         return out
 
 
-#### OLD
-# from scipy.io import wavfile
-# import time
-# import tempfile
+def check_max_cli_channels():
+    """Find whether WavPack CLI supports 256 or 1024 channels by "trying"
 
-
-# # length of random string for tmp files
-# RND_LEN = 10
-
-# def get_random_string(length):
-#     # choose from all lowercase letter
-#     letters = string.ascii_lowercase
-#     result_str = ''.join(random.choice(letters) for i in range(length))
-
-#     return result_str
-
-
-# class WavPackNumpyEncoder:
-#     max_channels = 1024
-
-#     def __init__(self,
-#                  data,
-#                  output_file,
-#                  sample_rate,
-#                  compression_mode="f",
-#                  hybrid_factor=None,
-#                  cc=False,
-#                  pair_unassigned=False, 
-#                  use_wav=True, 
-#                  set_block_size=False, 
-#                  ):
-#         cformat = "wavpack"
-#         assert data.shape[1] <= self.max_channels
-#         assert compression_mode in ["f", "h", "hh", "default"]
-
-#         self._data = data
-#         self._nsamples, self._nchannels = data.shape
-#         self._output_file = Path(output_file)
-#         self._sample_rate = sample_rate
-#         self._cmode = compression_mode
-#         self._hybrid_factor = hybrid_factor
-#         self._cc = cc
-#         self._pair_unassigned = pair_unassigned
-#         self._use_wav = use_wav
-#         self._set_block_size = set_block_size
-        
-#     def process(self):
-#         # approach: convert data to tmp wav file --> convert to wv --> rm wav
-#         cmd = ["wavpack", "-y", "-q"]
-#         if self._cmode in ["f", "h", "hh"]:
-#             cmd += [f"-{self._cmode}"]
-        
-#         if self._hybrid_factor is not None:
-#             cmd += [f"-b{self._hybrid_factor}"]
-#             if self._cc:
-#                 cmd += ["-cc"]
-#         if self._pair_unassigned:
-#             cmd += ["--pair-unassigned-chans"]
-#         if self._set_block_size:
-#             blocksize = min(self._nsamples, 131072)
-#             cmd += [f"--blocksize={blocksize}"]
-        
-#         tmp_file = None
-
-#         if self._use_wav:
-#             tmp_file = self._output_file.parent / f"tmp{get_random_string(10)}.wav"
-#             wavfile.write(tmp_file, int(self._sample_rate), self._data)    
-#             cmd += ["-i", "-d"]
-#             cmd += [str(tmp_file), "-o", str(self._output_file)]
-#             subprocess.run(cmd, capture_output=False)
-#             print(" ".join(cmd))
-#         else:
-
-#             cmd += [f"--raw-pcm={int(self._sample_rate)},16,{self._nchannels}"]
-#             cmd += ["-", "-o", "-"] 
-#             # pipe cat stout to wavpack stdin
-#             input_data = self._data.tobytes()
-#             wavp = subprocess.run(cmd, input=input_data, capture_output=True)
-
-#             with self._output_file.open("wb") as f:
-#                 f.write(wavp.stdout)
-#             # self._data.tobytes()
-#             # print(" ".join(pipe_cmd))
-#             print(" ".join(cmd))
-            
-#         # rm tmp file
-#         if tmp_file:
-#             if tmp_file.is_file():
-#                 tmp_file.unlink()
-        
-
-# class WavPackNumpyDecoder:
-#     def __init__(self,
-#                  input_file,
-#                  use_wav=True,
-#                  shape=None):
-#         self._input_file = Path(input_file)
-#         self._use_wav = use_wav
-#         self._decoded_data = None
-#         self._shape = shape
-
-#     def process(self):
-#         # convert to tmp wav file
-#         cmd = ["wvunpack", "-y", "-q"]
-
-#         if self._use_wav:
-#             tmp_wav_file = self._input_file.parent / f"tmp{get_random_string(10)}.wav"
-
-#             # print(f"Converting {self._input_file}")
-#             cmd += [str(self._input_file), "-o", str(tmp_wav_file)]
-#             subprocess.run(cmd, capture_output=False)
-#             # load wav in memory
-#             _, data = wavfile.read(tmp_wav_file)
-        
-#             # rm tmp wav file
-#             tmp_wav_file.unlink()
-#         else:
-#             # use pipe
-#             # cmd += [str(self._input_file), "--raw", "-o", "-"]
-#             cmd += ["--raw", "-", "-o", "-"]
-#             print(" ".join(cmd))
-#             wvp = subprocess.run(cmd, input=self._input_file.open("rb").read(), capture_output=True) 
-#             data = np.frombuffer(wvp.stdout, dtype="int16")
-#             if self._shape:
-#                 data = data.reshape(self._shape)
-
-#         self._decoded_data = data
-
+    Returns
+    -------
+    int
+        Max CLI channels
+    """
+    try:
+        data = (np.random.randn(100, 1024) * 1000).astype("int16")
+        WavPackCodec.max_channels = 1024
+        cod = WavPackCodec(dtype="int16")
+        enc = cod.encode(data)
+        return 1024
+    except RuntimeError:
+        return 256

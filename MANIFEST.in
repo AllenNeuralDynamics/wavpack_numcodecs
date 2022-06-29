@@ -1,0 +1,6 @@
+include wavpack_numcodecs/lib/linux/wavpack
+include wavpack_numcodecs/lib/linux/wvunpack
+include wavpack_numcodecs/lib/macos/wavpack
+include wavpack_numcodecs/lib/macos/wvunpack
+include wavpack_numcodecs/lib/windows/wavpack.exe
+include wavpack_numcodecs/lib/windows/wvunpack.exe

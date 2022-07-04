@@ -44,7 +44,7 @@ else: # use pre-built libraries
         
 
 def get_wavpack_version():
-    wvver = subprocess.run(["wavpack", "--version"], capture_output=True)
+    wvver = subprocess.run([wavpack_lib_cmd, "--version"], capture_output=True)
     wv_version = wvver.stdout.decode().split("\n")[0][len("wavpack")+1:]
     return parse(wv_version)
 

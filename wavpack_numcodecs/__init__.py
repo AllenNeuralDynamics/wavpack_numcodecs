@@ -1,8 +1,5 @@
 import numcodecs
-from .wavpack import WavPackCodec, has_wavpack, check_max_cli_channels
-
-# check max CLI channels for available wavpack
-WavPackCodec.set_max_cli_channels(check_max_cli_channels())
+from .wavpack import WavPackCodec, has_wavpack, get_wavpack_version, get_max_channels
 
 # add to regisrty
 numcodecs.register_codec(WavPackCodec)

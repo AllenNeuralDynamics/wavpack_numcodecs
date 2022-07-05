@@ -1,3 +1,6 @@
+![python-tests](https://github.com/AllenNeuralDynamics/wavpack_numcodecs/actions/workflows/python-package.yml/badge.svg)
+
+
 # WavPack - numcodecs 
 
 [Numcodecs](https://numcodecs.readthedocs.io/en/latest/index.html) wrapper to the [WavPack](https://www.wavpack.com/index.html) audio codec.

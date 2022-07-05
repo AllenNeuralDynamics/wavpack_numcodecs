@@ -41,7 +41,7 @@ jobs:
         run: |
           ./wavpack_numcodecs/lib/macos/wavpack --version
       - name: WavPack binaries version (Windows)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'windows-latest'
         run: |
           .\wavpack_numcodecs\lib\windows\wavpack.exe --version
       - name: Install dependencies

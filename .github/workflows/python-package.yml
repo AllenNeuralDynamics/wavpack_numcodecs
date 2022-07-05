@@ -32,6 +32,15 @@ jobs:
           ./autogen.sh
           sudo make install
           cd ..
+      - name: WavPack binaries versions
+        run: |
+          if [ ${{ matrix.os }} == 'ubuntu-latest' ]; then
+              ./wavpack_numcodecs/lib/linux/wavpack --version
+          elif [ ${{ matrix.os }} == 'macos-latest' ]; then
+              ./wavpack_numcodecs/lib/macos/wavpack --version
+          elif [ ${{ matrix.os }} == 'windows-latest' ]; then
+              .\wavpack_numcodecs\lib\windows\wavpack.exe --version
+          fi
       - name: Install dependencies
         run: |
           pip install -e .

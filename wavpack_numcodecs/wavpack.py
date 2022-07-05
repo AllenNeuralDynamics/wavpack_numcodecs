@@ -6,6 +6,8 @@ import numpy as np
 from pathlib import Path
 from copy import copy
 
+from packaging.version import parse
+
 from numcodecs.abc import Codec
 from numcodecs.compat import ndarray_copy
 
@@ -39,12 +41,23 @@ else: # use pre-built libraries
     elif platform.system() == "Windows": # Windows
         wavpack_lib_cmd = str((lib_folder / "windows" / "wavpack.exe").resolve().absolute())
         wvunpack_lib_cmd = str((lib_folder / "windows" / "wvunpack.exe").resolve().absolute())
+        
 
+def get_wavpack_version():
+    wvver = subprocess.run([wavpack_lib_cmd, "--version"], capture_output=True)
+    wv_version = wvver.stdout.decode().split("\n")[0][len("wavpack")+1:]
+    return parse(wv_version)
 
+def get_max_channels():
+    wavpack_version = get_wavpack_version()
+    if wavpack_version >= parse("5.5.0"):
+        return 1024
+    else:
+        return 256
+    
 
 class WavPackCodec(Codec):    
     codec_id = "wavpack"
-    max_channels = 256
     max_block_size = 131072
     supported_dtypes = ["int8", "int16", "int32", "uint8", "uint16", "uint32", "float32"]
 
@@ -88,10 +101,9 @@ class WavPackCodec(Codec):
         Notes
         -----
         The binaries shipped with the package support a different maximum number of channels for 
-        different OSs:
-            * Linux : 1024 (default 256)
-            * macOS : 256
-            * Windows : 256
+        different wavpack versions:
+            * wavpack < 5.5.0: max channels 256
+            * wavpack >= 5.5.0: max channels 1024 (via --raw-pcm-ex command)
         """
         self.compression_mode = compression_mode   
         self.pair_unassigned = pair_unassigned
@@ -101,6 +113,14 @@ class WavPackCodec(Codec):
         self.dtype = np.dtype(dtype)
         self.use_system_wavpack = use_system_wavpack
         self.debug = debug
+        
+        wavpack_version = get_wavpack_version()
+        if wavpack_version >= parse("5.5.0"):
+            self.max_channels = 1024
+            self.pack_cmd = "--raw-pcm-ex"
+        else:
+            self.max_channels = 256
+            self.pack_cmd = "--raw-pcm"
 
         assert self.dtype.name in self.supported_dtypes
 
@@ -129,8 +149,8 @@ class WavPackCodec(Codec):
         self.base_dec_cmd = [wvunpack_cmd, "-y", "-q"]
         
     @staticmethod
-    def set_max_cli_channels(max_cli_channels):
-        WavPackCodec.max_channels = max_cli_channels
+    def get_max_cli_channels():
+        return get_max_channels()
 
     def get_config(self):
         # override to handle encoding dtypes
@@ -165,23 +185,24 @@ class WavPackCodec(Codec):
     def encode(self, buf):
         cmd = copy(self.base_enc_cmd)
         data = self._prepare_data(buf)
+        dtype = data.dtype
         if self.debug:
             print(f"Data shape: {data.shape}")
         nsamples, nchans = data.shape
-        nbits = int(data.dtype.itemsize * 8)
+        nbits = int(dtype.itemsize * 8)
 
         if self.set_block_size:
             blocksize = min(nsamples, self.max_block_size)
             cmd += [f"--blocksize={blocksize}"]
         
-        if self.dtype.kind != "f":
-            cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits},{nchans}"]
+        if dtype.kind != "f":
+            cmd += [f"{self.pack_cmd}={int(self.sample_rate)},{nbits},{nchans}"]
         else:
-            cmd += [f"--raw-pcm={int(self.sample_rate)},{nbits}f,{nchans}"]
+            cmd += [f"{self.pack_cmd}={int(self.sample_rate)},{nbits}f,{nchans}"]
         cmd += ["-q", "-", "-o", "-"] 
         
         if self.debug:
-            print(" ".join(cmd))
+            print(" ".join(cmd), flush=True)
         
         # pipe buffer to wavpack stdin and return encoded in stdout
         wavenc = subprocess.run(cmd, input=data.tobytes(), capture_output=True)
@@ -199,7 +220,7 @@ class WavPackCodec(Codec):
         cmd += ["--raw", "-", "-o", "-"]
         
         if self.debug:
-            print(" ".join(cmd))
+            print(" ".join(cmd), flush=True)
 
         # pipe buffer to wavpack stdin and return decoded in stdout
         wvdec = subprocess.run(cmd, input=buf, capture_output=True)
@@ -212,21 +233,3 @@ class WavPackCodec(Codec):
         out = ndarray_copy(dec, out)
         
         return out
-
-
-def check_max_cli_channels():
-    """Find whether WavPack CLI supports 256 or 1024 channels by "trying"
-
-    Returns
-    -------
-    int
-        Max CLI channels
-    """
-    try:
-        data = (np.random.randn(100, 1024) * 1000).astype("int16")
-        WavPackCodec.max_channels = 1024
-        cod = WavPackCodec(dtype="int16")
-        enc = cod.encode(data)
-        return 1024
-    except RuntimeError:
-        return 256

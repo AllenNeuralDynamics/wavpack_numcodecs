@@ -12,8 +12,6 @@ from numcodecs.abc import Codec
 
 parent = Path(__file__).parent
 
-print(parent)
-
 cdef extern from "wavpack_local.h":
     const char* WavpackGetLibraryVersionString()
 
@@ -202,17 +200,20 @@ class WavPack(Codec):
             * wavpack < 5.5.0: max channels 256
             * wavpack >= 5.5.0: max channels 1024 (via --raw-pcm-ex command)
         """
-        self.level = level
+        self.level = int(level)
+        assert self.level in (1,2,3,4)
         self.pair_unassigned = pair_unassigned
         self.set_block_size = set_block_size
-        self.bps = bps
         self.dtype = np.dtype(dtype)
         self.debug = debug
         
         assert self.dtype.name in self.supported_dtypes
 
         if bps is not None:
-            self.bps = max(bps, 2.25)
+            if bps > 0:
+                self.bps = max(bps, 2.25)
+            else:
+                self.bps = 0
         else:
             self.bps = 0
         
@@ -221,7 +222,7 @@ class WavPack(Codec):
         return dict(
             id=self.codec_id,
             level=self.level,
-            bps=self.bps,
+            bps=float(self.bps),
             pair_unassigned=self.pair_unassigned,
             set_block_size=self.set_block_size,
             dtype=str(self.dtype),

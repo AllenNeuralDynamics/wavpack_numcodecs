@@ -6,7 +6,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "wavpack/wavpack.h"
+// #include "wavpack/wavpack.h"
+#include "wavpack.h"
 
 // This is the callback required by the wavpack-stream library to write compressed audio frames.
 
@@ -14,6 +15,10 @@ typedef struct {
     size_t bytes_available, bytes_used;
     char *data, overflow;
 } WavpackWriterContext;
+
+typedef enum {
+    int8, int16, int32, uint8, uint16, uint32, float32
+} dtype_enum;
 
 static int write_block (void *id, void *data, int32_t length)
 {
@@ -42,9 +47,81 @@ static int write_block (void *id, void *data, int32_t length)
 
 #define BUFFER_SAMPLES 256
 
-size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chans, int level, float bps, void *destin, size_t destin_bytes)
-{
-    int16_t *source = source_char;
+size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chans, int level, float bps, void *destin, 
+                          size_t destin_bytes, int dtype)
+{   
+    // cast void pointer
+    dtype_enum dtype_chosen = (dtype_enum) dtype;
+
+    int8_t *source_int8;
+    int16_t *source_int16;
+    int32_t *source_int32;
+    uint8_t *source_uint8;
+    uint16_t *source_uint16;
+    uint32_t *source_uint32;
+    float *source_float;
+    int bytes_per_sample;
+    int fp = 0;
+
+    switch (dtype_chosen) {
+        case int8:
+        {
+            fprintf (stderr, "int8!!!");
+            source_int8 = source_char;
+            bytes_per_sample = 1;
+            break;
+        }
+        case int16:
+        {
+            fprintf (stderr, "int16!!!");
+            source_int16 = source_char;
+            bytes_per_sample = 2;
+            break;
+        }
+        case int32:
+        {
+            fprintf (stderr, "int32!!!");
+            source_int32 = source_char;
+            bytes_per_sample = 4;
+            break;
+        }
+        case uint8:
+        {
+            fprintf (stderr, "uint8!!!");
+            source_uint8 = source_char;
+            bytes_per_sample = 1;
+            break;
+        }
+        case uint16:
+        {
+            fprintf (stderr, "uint16!!!");
+            source_uint16 = source_char;
+            bytes_per_sample = 2;
+            break;
+        }
+        case uint32: 
+        {
+            fprintf (stderr, "uint32!!!");
+            source_uint32 = source_char;
+            bytes_per_sample = 4;
+            break;
+        }
+        case float32:
+        {
+            //  here we probably need to set some float FLAGS (float_norm_exp?)
+            fprintf (stderr, "float32!!!");
+            source_float = source_char;
+            bytes_per_sample = 4;
+            fp = 1;
+            break;
+        }
+        // default:
+        //     fprintf (stderr, "WavPack unsupported data type %d\n", dtype_chosen);
+        //     break;
+    }
+    // fprintf (stderr, "WavPack data type chosen %d - bytes per sample %d - size of sample %ld\n", dtype_chosen, bytes_per_sample, sizeof(source[0]));
+
+
     size_t num_samples_remaining = num_samples;
     int32_t *temp_buffer = NULL;
     WavpackWriterContext raw_wv;
@@ -64,9 +141,13 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
 
     memset (&config, 0, sizeof (WavpackConfig));
     config.num_channels = num_chans;
-    config.bytes_per_sample = 2;
-    config.bits_per_sample = 16;
+    config.bytes_per_sample = bytes_per_sample;
+    config.bits_per_sample = (int) bytes_per_sample * 8;
     config.sample_rate = 32000;     // doesn't need to be correct, although it might be nice
+    config.float_norm_exp = fp ? 127 : 0;
+
+
+    fprintf (stderr, "WavPack bytes per sample %d - bits per sample %d\n", config.bytes_per_sample, config.bits_per_sample);
 
     config.block_samples = num_samples;
 
@@ -110,11 +191,43 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
         int samples_to_encode = num_samples_remaining < BUFFER_SAMPLES ?
             num_samples_remaining :
             BUFFER_SAMPLES;
-        int samples_to_copy = samples_to_encode * num_chans;
+
         int32_t *dptr = temp_buffer;
 
-        while (samples_to_copy--)
-            *dptr++ = *source++;
+        // copy buffer in case not 32-bit
+        if ((dtype_chosen == int8) || (dtype_chosen == int16) || (dtype_chosen == uint8) || (dtype_chosen == int16)) 
+        {
+            int samples_to_copy = samples_to_encode * num_chans;
+            
+            while (samples_to_copy--)
+                switch (dtype_chosen) {
+                    case int8:
+                    {
+                        *dptr++ = *source_int8++;
+                        break;
+                    }
+                    case int16:
+                    {
+                        *dptr++ = *source_int16++;
+                        break;
+                    }
+                    case uint8:
+                    {
+                        *dptr++ = *source_uint8++;
+                        break;
+                    }
+                    case uint16:
+                    {
+                        *dptr++ = *source_uint16++;
+                        break;
+                    }
+                }
+                // *dptr++ = *source++;
+        }
+        else if (dtype_chosen == int32)
+            dptr = source_int32;
+        else
+            dptr = source_uint32;
 
         if (!WavpackPackSamples (wpc, temp_buffer, samples_to_encode)) {
             fprintf (stderr, "WavPack encoding failed\n");

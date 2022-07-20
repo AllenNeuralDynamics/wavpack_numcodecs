@@ -226,8 +226,10 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
         }
         else if (dtype_chosen == int32)
             dptr = source_int32;
-        else
+        else if (dtype_chosen == uint32)
             dptr = source_uint32;
+        else // this must be float
+            dptr = source_float;
 
         if (!WavpackPackSamples (wpc, temp_buffer, samples_to_encode)) {
             fprintf (stderr, "WavPack encoding failed\n");

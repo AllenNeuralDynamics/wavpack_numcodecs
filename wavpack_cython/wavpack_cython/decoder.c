@@ -128,27 +128,9 @@ size_t WavpackDecodeFile (void *source, size_t source_bytes, int *num_chans, int
     nch = WavpackGetNumChannels (wpc);
     bps = WavpackGetBytesPerSample (wpc);
 
-    int8_t *dest_int8;
-    int16_t *dest_int16;
-    int32_t *dest_int32;
-    switch (bps) {
-        case 1:
-        {
-            dest_int8 = destin_char;
-            break;
-        }
-        case 2:
-        {
-            dest_int16 = destin_char;
-            break;
-        }
-        case 4:
-        {
-            dest_int32 = destin_char;
-            break;
-        }
-    }
-
+    int8_t *dest_int8 = destin_char;
+    int16_t *dest_int16 = destin_char;
+    int32_t *dest_int32 = destin_char;
 
     if (num_chans)
         *num_chans = nch;
@@ -159,38 +141,40 @@ size_t WavpackDecodeFile (void *source, size_t source_bytes, int *num_chans, int
     fprintf (stderr, "WavPack decoding: bytes per sample %d - num chans %d\n", bps, nch);
 
     max_samples = destin_bytes / bps / nch;
-    temp_buffer = malloc (BUFFER_SAMPLES * nch * sizeof (int32_t));
+
+    if (bps != 4)
+        temp_buffer = malloc (BUFFER_SAMPLES * nch * sizeof (int32_t));
 
     while (1) {
         int samples_to_decode = total_samples + BUFFER_SAMPLES > max_samples ?
             max_samples - total_samples :
             BUFFER_SAMPLES;
-        int samples_decoded = WavpackUnpackSamples (wpc, temp_buffer, samples_to_decode);
+        int samples_decoded = WavpackUnpackSamples (wpc, temp_buffer ? temp_buffer : dest_int32, samples_to_decode);
+        int samples_to_copy = samples_decoded * nch;
 
         if (!samples_decoded)
             break;
 
         if ((bps == 1) || (bps == 2)) 
         {
-            int samples_to_copy = samples_decoded * nch;
             int32_t *sptr = temp_buffer;
-            while (samples_to_copy--)
 
-                switch (bps) {
-                    case 1:
-                        {
-                            *dest_int8++ = *sptr++;
-                            break;
-                        }
-                        case 2:
-                        {
-                            *dest_int16++ = *sptr++;
-                            break;
-                        }
-                    }
+            switch (bps) {
+                case 1:
+                    while (samples_to_copy--)
+                        *dest_int8++ = *sptr++;
+
+                    break;
+
+                case 2:
+                    while (samples_to_copy--)
+                        *dest_int16++ = *sptr++;
+
+                    break;
             }
+        }
         else
-            dest_int32[total_samples] = temp_buffer;
+            dest_int32 += samples_to_copy;
 
         if ((total_samples += samples_decoded) == max_samples)
             break;

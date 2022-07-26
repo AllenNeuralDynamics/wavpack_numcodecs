@@ -56,10 +56,6 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
     int8_t *source_int8;
     int16_t *source_int16;
     int32_t *source_int32;
-    uint8_t *source_uint8;
-    uint16_t *source_uint16;
-    uint32_t *source_uint32;
-    float *source_float;
     int bytes_per_sample;
     int fp = 0;
 
@@ -85,39 +81,18 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
             bytes_per_sample = 4;
             break;
         }
-        case uint8:
-        {
-            fprintf (stderr, "uint8!!!");
-            source_uint8 = source_char;
-            bytes_per_sample = 1;
-            break;
-        }
-        case uint16:
-        {
-            fprintf (stderr, "uint16!!!");
-            source_uint16 = source_char;
-            bytes_per_sample = 2;
-            break;
-        }
-        case uint32: 
-        {
-            fprintf (stderr, "uint32!!!");
-            source_uint32 = source_char;
-            bytes_per_sample = 4;
-            break;
-        }
         case float32:
         {
             //  here we probably need to set some float FLAGS (float_norm_exp?)
             fprintf (stderr, "float32!!!");
-            source_float = source_char;
+            source_int32 = source_char;
             bytes_per_sample = 4;
             fp = 1;
             break;
         }
-        // default:
-        //     fprintf (stderr, "WavPack unsupported data type %d\n", dtype_chosen);
-        //     break;
+        default:
+            fprintf (stderr, "WavPack unsupported data type %d\n", dtype_chosen);
+            break;
     }
     // fprintf (stderr, "WavPack data type chosen %d - bytes per sample %d - size of sample %ld\n", dtype_chosen, bytes_per_sample, sizeof(source[0]));
 
@@ -185,53 +160,36 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
         return -1;
     }
 
-    temp_buffer = malloc (BUFFER_SAMPLES * num_chans * sizeof (int32_t));
+    if (bytes_per_sample != 4)
+        temp_buffer = malloc (BUFFER_SAMPLES * num_chans * sizeof (int32_t));
 
     while (num_samples_remaining) {
         int samples_to_encode = num_samples_remaining < BUFFER_SAMPLES ?
             num_samples_remaining :
             BUFFER_SAMPLES;
-
-        int32_t *dptr = temp_buffer;
+        int samples_to_copy = samples_to_encode * num_chans;
 
         // copy buffer in case not 32-bit
-        if ((dtype_chosen == int8) || (dtype_chosen == int16) || (dtype_chosen == uint8) || (dtype_chosen == int16)) 
+        if (bytes_per_sample != 4)
         {
-            int samples_to_copy = samples_to_encode * num_chans;
+            int32_t *dptr = temp_buffer;
             
-            while (samples_to_copy--)
-                switch (dtype_chosen) {
-                    case int8:
-                    {
+            switch (dtype_chosen) {
+                case int8:
+                    while (samples_to_copy--)
                         *dptr++ = *source_int8++;
-                        break;
-                    }
-                    case int16:
-                    {
-                        *dptr++ = *source_int16++;
-                        break;
-                    }
-                    case uint8:
-                    {
-                        *dptr++ = *source_uint8++;
-                        break;
-                    }
-                    case uint16:
-                    {
-                        *dptr++ = *source_uint16++;
-                        break;
-                    }
-                }
-                // *dptr++ = *source++;
-        }
-        else if (dtype_chosen == int32)
-            dptr = source_int32;
-        else if (dtype_chosen == uint32)
-            dptr = source_uint32;
-        else // this must be float
-            dptr = source_float;
 
-        if (!WavpackPackSamples (wpc, temp_buffer, samples_to_encode)) {
+                    break;
+
+                case int16:
+                    while (samples_to_copy--)
+                        *dptr++ = *source_int16++;
+
+                    break;
+            }
+        }
+
+        if (!WavpackPackSamples (wpc, temp_buffer ? temp_buffer : source_int32, samples_to_encode)) {
             fprintf (stderr, "WavPack encoding failed\n");
             free (temp_buffer);
             WavpackCloseFile (wpc);
@@ -239,6 +197,9 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
         }
 
         num_samples_remaining -= samples_to_encode;
+
+        if (bytes_per_sample == 4)
+            source_int32 += samples_to_copy;
     }
 
     free (temp_buffer);

@@ -92,10 +92,8 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
         }
         default:
             fprintf (stderr, "WavPack unsupported data type %d\n", dtype_chosen);
-            break;
+            return -1;
     }
-    // fprintf (stderr, "WavPack data type chosen %d - bytes per sample %d - size of sample %ld\n", dtype_chosen, bytes_per_sample, sizeof(source[0]));
-
 
     size_t num_samples_remaining = num_samples;
     int32_t *temp_buffer = NULL;
@@ -185,6 +183,9 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
                     while (samples_to_copy--)
                         *dptr++ = *source_int16++;
 
+                    break;
+
+                default:        // we shouldn't get here, but suppress compiler warning
                     break;
             }
         }

@@ -15,6 +15,10 @@ typedef struct {
     char *data, overflow;
 } WavpackWriterContext;
 
+typedef enum {
+    int8, int16, int32, float32
+} dtype_enum;
+
 static int write_block (void *id, void *data, int32_t length)
 {
     WavpackWriterContext *cxt = id;
@@ -42,9 +46,49 @@ static int write_block (void *id, void *data, int32_t length)
 
 #define BUFFER_SAMPLES 256
 
-size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chans, int level, float bps, void *destin, size_t destin_bytes)
-{
-    int16_t *source = source_char;
+size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chans, int level, float bps, void *destin, 
+                          size_t destin_bytes, int dtype)
+{   
+    // cast void pointer
+    dtype_enum dtype_chosen = (dtype_enum) dtype;
+
+    int8_t *source_int8;
+    int16_t *source_int16;
+    int32_t *source_int32;
+    int bytes_per_sample;
+    int fp = 0;
+
+    switch (dtype_chosen) {
+        case int8:
+        {
+            source_int8 = source_char;
+            bytes_per_sample = 1;
+            break;
+        }
+        case int16:
+        {
+            source_int16 = source_char;
+            bytes_per_sample = 2;
+            break;
+        }
+        case int32:
+        {
+            source_int32 = source_char;
+            bytes_per_sample = 4;
+            break;
+        }
+        case float32:
+        {
+            source_int32 = source_char;
+            bytes_per_sample = 4;
+            fp = 1;
+            break;
+        }
+        default:
+            fprintf (stderr, "WavPack unsupported data type %d\n", dtype_chosen);
+            return -1;
+    }
+
     size_t num_samples_remaining = num_samples;
     int32_t *temp_buffer = NULL;
     WavpackWriterContext raw_wv;
@@ -64,9 +108,10 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
 
     memset (&config, 0, sizeof (WavpackConfig));
     config.num_channels = num_chans;
-    config.bytes_per_sample = 2;
-    config.bits_per_sample = 16;
+    config.bytes_per_sample = bytes_per_sample;
+    config.bits_per_sample = (int) bytes_per_sample * 8;
     config.sample_rate = 32000;     // doesn't need to be correct, although it might be nice
+    config.float_norm_exp = fp ? 127 : 0;
 
     config.block_samples = num_samples;
 
@@ -104,19 +149,39 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
         return -1;
     }
 
-    temp_buffer = malloc (BUFFER_SAMPLES * num_chans * sizeof (int32_t));
+    if (bytes_per_sample != 4)
+        temp_buffer = malloc (BUFFER_SAMPLES * num_chans * sizeof (int32_t));
 
     while (num_samples_remaining) {
         int samples_to_encode = num_samples_remaining < BUFFER_SAMPLES ?
             num_samples_remaining :
             BUFFER_SAMPLES;
         int samples_to_copy = samples_to_encode * num_chans;
-        int32_t *dptr = temp_buffer;
 
-        while (samples_to_copy--)
-            *dptr++ = *source++;
+        // copy buffer in case not 32-bit
+        if (bytes_per_sample != 4)
+        {
+            int32_t *dptr = temp_buffer;
+            
+            switch (dtype_chosen) {
+                case int8:
+                    while (samples_to_copy--)
+                        *dptr++ = *source_int8++;
 
-        if (!WavpackPackSamples (wpc, temp_buffer, samples_to_encode)) {
+                    break;
+
+                case int16:
+                    while (samples_to_copy--)
+                        *dptr++ = *source_int16++;
+
+                    break;
+
+                default:        // we shouldn't get here, but suppress compiler warning
+                    break;
+            }
+        }
+
+        if (!WavpackPackSamples (wpc, temp_buffer ? temp_buffer : source_int32, samples_to_encode)) {
             fprintf (stderr, "WavPack encoding failed\n");
             free (temp_buffer);
             WavpackCloseFile (wpc);
@@ -124,6 +189,9 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
         }
 
         num_samples_remaining -= samples_to_encode;
+
+        if (bytes_per_sample == 4)
+            source_int32 += samples_to_copy;
     }
 
     free (temp_buffer);

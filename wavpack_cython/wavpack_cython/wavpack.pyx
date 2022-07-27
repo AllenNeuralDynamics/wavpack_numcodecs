@@ -1,25 +1,35 @@
-from pathlib import Path
+# cython: embedsignature=True
+# cython: profile=False
+# cython: linetrace=False
+# cython: binding=False
+# cython: language_level=3
+
+
 from cpython.buffer cimport PyBUF_ANY_CONTIGUOUS, PyBUF_WRITEABLE
 from cpython.bytes cimport PyBytes_FromStringAndSize, PyBytes_AS_STRING
 
-import numpy as np
 
-from numcodecs.compat_ext cimport Buffer
-from numcodecs.compat_ext import Buffer
+from .compat_ext cimport Buffer
+from .compat_ext import Buffer
 from numcodecs.compat import ensure_contiguous_ndarray
 from numcodecs.abc import Codec
+
+from pathlib import Path
+import numpy as np
 
 
 parent = Path(__file__).parent
 
-cdef extern from "wavpack_local.h":
+cdef extern from "wavpack/wavpack_local.h":
     const char* WavpackGetLibraryVersionString()
 
 cdef extern from "encoder.c":
-    size_t WavpackEncodeFile (void *source, size_t num_samples, size_t num_chans, int level, float bps, void *destin, size_t destin_bytes)
+    size_t WavpackEncodeFile (void *source, size_t num_samples, size_t num_chans, int level, float bps, void *destin, 
+                              size_t destin_bytes, int dtype)
 
 cdef extern from "decoder.c":
-    size_t WavpackDecodeFile (void *source, size_t source_bytes, int *num_chans, void *destin, size_t destin_bytes)
+    size_t WavpackDecodeFile (void *source, size_t source_bytes, int *num_chans, int *bytes_per_sample, void *destin, 
+                              size_t destin_bytes)
 
 
 VERSION_STRING = WavpackGetLibraryVersionString()
@@ -27,7 +37,15 @@ VERSION_STRING = str(VERSION_STRING, 'ascii')
 __version__ = VERSION_STRING
 
 
-def compress(source, int level, int num_samples, int num_chans, float bps):
+dtype_enum = {
+    "int8": 0,
+    "int16": 1,
+    "int32": 2,
+    "float32": 3
+}
+
+
+def compress(source, int level, int num_samples, int num_chans, float bps, int dtype):
     """Compress data.
 
     Parameters
@@ -72,7 +90,7 @@ def compress(source, int level, int num_samples, int num_chans, float bps):
         dest_ptr = PyBytes_AS_STRING(dest)
         dest_size = source_size
 
-        compressed_size = WavpackEncodeFile(source_ptr, num_samples, num_chans, level, bps, dest_ptr, dest_size)
+        compressed_size = WavpackEncodeFile(source_ptr, num_samples, num_chans, level, bps, dest_ptr, dest_size, dtype)
 
     finally:
 
@@ -114,6 +132,8 @@ def decompress(source, dest=None):
         int source_size, dest_size, decompressed_samples
         int num_chans
         int *num_chans_ptr = &num_chans
+        int bytes_per_sample
+        int *bytes_per_sample_ptr = &bytes_per_sample
 
     # setup source buffer
     source_buffer = Buffer(source, PyBUF_ANY_CONTIGUOUS)
@@ -123,18 +143,19 @@ def decompress(source, dest=None):
     try:
 
         # setup destination
-        # setup destination buffer
         if dest is None:
             # allocate memory
-            dest_size = int(source_size * 20)
+            dest_size = int(source_size * 10)
             dest = PyBytes_FromStringAndSize(NULL, dest_size)
             dest_ptr = PyBytes_AS_STRING(dest)
         else:
             arr = ensure_contiguous_ndarray(dest)
             dest_buffer = Buffer(arr, PyBUF_ANY_CONTIGUOUS | PyBUF_WRITEABLE)
             dest_ptr = dest_buffer.ptr
+            dest_size = dest_buffer.nbytes
 
-        decompressed_samples = WavpackDecodeFile(source_ptr, source_size, num_chans_ptr, dest_ptr, dest_size)
+        decompressed_samples = WavpackDecodeFile(source_ptr, source_size, num_chans_ptr, bytes_per_sample_ptr, 
+                                                 dest_ptr, dest_size)
 
     finally:
 
@@ -147,25 +168,20 @@ def decompress(source, dest=None):
     if decompressed_samples <= 0:
         raise RuntimeError(f'WavPack decompression error: {decompressed_samples}')
 
-    return dest[:decompressed_samples * num_chans * 2]
+    return dest[:decompressed_samples * num_chans * bytes_per_sample]
 
 
         
 class WavPack(Codec):    
     codec_id = "wavpack"
     max_block_size = 131072
-    supported_dtypes = ["int16"] #["int8", "int16", "int32", "uint8", "uint16", "uint32", "float32"]
-    max_channels = 1024
+    supported_dtypes = ["int8", "int16", "int32", "uint8", "uint16", "uint32", "float32"]
+    max_channels = 4096
     max_buffer_size = 0x7E000000
 
-    def __init__(self, level=1, 
-                 bps=None, pair_unassigned=False, 
-                 set_block_size=False, dtype="int16", debug=False):
+    def __init__(self, level=1, bps=None, debug=False):
         """
         Numcodecs Codec implementation for WavPack (https://www.wavpack.com/) codec.
-
-        The implementation uses the "wavpack" and "wvunpack" CLI (for encoding and decoding, respectively),
-        and uses pipes to transfer input and output streams between processes. 
 
         2D buffers exceeding the supported number of channels (buffer's second dimension) and 
         buffers > 2D are flattened before compression.
@@ -179,35 +195,12 @@ class WavPack(Codec):
             If the hybrid factor is given, the hybrid mode is used and compression is lossy. 
             The hybrid factor is between 2.25 and 24 (it can be a decimal, e.g. 3.5) and it 
             is the average number of bits used to encode each sample, by default None
-        pair_unassigned : bool, optional
-            Encodes unassigned channels into stereo pairs, by default False
-        set_block_size : bool, optional
-            If True, it tries to fit all the data in one block (max 131072), by default False
-        sample_rate : int, optional
-            The sample rate that wavpack internally uses, by default 48000
-        dtype : str, optional
-            The target data type for the compressor. Note that this needs to be specified at
-            instantiation, by default "int16"
-        use_system_wavpack : bool
-            If True, the codec uses the system's "wavpack" and "wvunpack" commands, by default False
         debug : bool
             If True, prints debug commands
-
-        Notes
-        -----
-        The binaries shipped with the package support a different maximum number of channels for 
-        different wavpack versions:
-            * wavpack < 5.5.0: max channels 256
-            * wavpack >= 5.5.0: max channels 1024 (via --raw-pcm-ex command)
         """
         self.level = int(level)
-        assert self.level in (1,2,3,4)
-        self.pair_unassigned = pair_unassigned
-        self.set_block_size = set_block_size
-        self.dtype = np.dtype(dtype)
+        assert self.level in (1, 2, 3, 4)
         self.debug = debug
-        
-        assert self.dtype.name in self.supported_dtypes
 
         if bps is not None:
             if bps > 0:
@@ -222,16 +215,12 @@ class WavPack(Codec):
         return dict(
             id=self.codec_id,
             level=self.level,
-            bps=float(self.bps),
-            pair_unassigned=self.pair_unassigned,
-            set_block_size=self.set_block_size,
-            dtype=str(self.dtype),
+            bps=float(self.bps)
         )
 
     def _prepare_data(self, buf):
         # checks
-        assert buf.dtype.kind in ["i", "u", "f"]
-        assert buf.dtype == self.dtype, f"Wrong dtype initialization! The data to encode should be {self.dtype}"
+        assert str(buf.dtype) in self.supported_dtypes, f"Unsupported dtype {buf.dtype}"
         if buf.ndim == 1:
             data = buf[:, None]
         elif buf.ndim == 2:
@@ -246,18 +235,14 @@ class WavPack(Codec):
         return data
 
     def encode(self, buf):
-        # buf = ensure_contiguous_ndarray(buf, self.max_buffer_size)
         data = self._prepare_data(buf)
-        dtype = data.dtype
+        dtype = str(data.dtype)
         if self.debug:
             print(f"Data shape: {data.shape}")
         nsamples, nchans = data.shape
-        nbits = int(dtype.itemsize * 8)
-
-        return compress(data, self.level, nsamples, nchans, self.bps)
+        dtype_id = dtype_enum[dtype]
+        return compress(data, self.level, nsamples, nchans, self.bps, dtype_id)
 
     def decode(self, buf, out=None):        
-        # buf = ensure_contiguous_ndarray(buf, self.max_buffer_size)
-        # data = np.frombuffer(buf, dtype=self.dtype)
-
+        buf = ensure_contiguous_ndarray(buf, self.max_buffer_size)
         return decompress(buf, out)

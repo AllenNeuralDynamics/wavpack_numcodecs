@@ -5,14 +5,13 @@ from cpython.bytes cimport PyBytes_FromStringAndSize, PyBytes_AS_STRING
 import numpy as np
 
 from numcodecs.compat_ext cimport Buffer
-from numcodecs.compat_ext import Buffer
 from numcodecs.compat import ensure_contiguous_ndarray
 from numcodecs.abc import Codec
 
 
 parent = Path(__file__).parent
 
-cdef extern from "wavpack_local.h":
+cdef extern from "wavpack/wavpack_local.h":
     const char* WavpackGetLibraryVersionString()
 
 cdef extern from "encoder.c":
@@ -33,10 +32,7 @@ dtype_enum = {
     "int8": 0,
     "int16": 1,
     "int32": 2,
-    "uint8": 3,
-    "uint16": 4,
-    "uint32": 5,
-    "float": 6
+    "float32": 3
 }
 
 
@@ -140,7 +136,7 @@ def decompress(source, dest=None):
         # setup destination
         if dest is None:
             # allocate memory
-            dest_size = int(source_size * 20)
+            dest_size = int(source_size * 10)
             dest = PyBytes_FromStringAndSize(NULL, dest_size)
             dest_ptr = PyBytes_AS_STRING(dest)
         else:
@@ -149,7 +145,6 @@ def decompress(source, dest=None):
             dest_ptr = dest_buffer.ptr
             dest_size = dest_buffer.nbytes
 
-        print(f"Dest size {dest_size}")
         decompressed_samples = WavpackDecodeFile(source_ptr, source_size, num_chans_ptr, bytes_per_sample_ptr, 
                                                  dest_ptr, dest_size)
 
@@ -163,8 +158,6 @@ def decompress(source, dest=None):
     # check decompression was successful
     if decompressed_samples <= 0:
         raise RuntimeError(f'WavPack decompression error: {decompressed_samples}')
-
-    print(f"Bytes per sample: {bytes_per_sample} - num chans: {num_chans} - decompressed samples: {decompressed_samples}")
 
     return dest[:decompressed_samples * num_chans * bytes_per_sample]
 
@@ -239,7 +232,6 @@ class WavPack(Codec):
             print(f"Data shape: {data.shape}")
         nsamples, nchans = data.shape
         dtype_id = dtype_enum[dtype]
-        print(dtype_id)
         return compress(data, self.level, nsamples, nchans, self.bps, dtype_id)
 
     def decode(self, buf, out=None):        

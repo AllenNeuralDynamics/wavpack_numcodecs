@@ -10,7 +10,7 @@ sys.path.append("../tests")
 from test_wavpackcodec import make_noisy_sin_signals, generate_test_signals
 from wavpack_cython import WavPack
 
-dtypes = ["int16", "int32"] #"uint16", "int32", "uint32", "float32"]
+dtypes = ["int8", "int16", "int32", "float32"] #"uint16", "int32", "uint32", "float32"]
 
 codec = WavPack()
 

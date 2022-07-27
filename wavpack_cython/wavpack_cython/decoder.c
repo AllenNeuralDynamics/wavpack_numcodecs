@@ -6,8 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// #include "wavpack/wavpack.h"
-#include "wavpack.h"
+#include "wavpack/wavpack.h"
 
 // This is the context for reading a memory-based "file"
 
@@ -138,7 +137,7 @@ size_t WavpackDecodeFile (void *source, size_t source_bytes, int *num_chans, int
     if (bytes_per_sample)
         *bytes_per_sample = bps;
 
-    fprintf (stderr, "WavPack decoding: bytes per sample %d - num chans %d\n", bps, nch);
+    // fprintf (stderr, "WavPack decoding: bytes per sample %d - num chans %d\n", bps, nch);
 
     max_samples = destin_bytes / bps / nch;
 

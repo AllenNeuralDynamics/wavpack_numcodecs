@@ -6,8 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// #include "wavpack/wavpack.h"
-#include "wavpack.h"
+#include "wavpack/wavpack.h"
 
 // This is the callback required by the wavpack-stream library to write compressed audio frames.
 
@@ -17,7 +16,7 @@ typedef struct {
 } WavpackWriterContext;
 
 typedef enum {
-    int8, int16, int32, uint8, uint16, uint32, float32
+    int8, int16, int32, float32
 } dtype_enum;
 
 static int write_block (void *id, void *data, int32_t length)
@@ -62,29 +61,24 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
     switch (dtype_chosen) {
         case int8:
         {
-            fprintf (stderr, "int8!!!");
             source_int8 = source_char;
             bytes_per_sample = 1;
             break;
         }
         case int16:
         {
-            fprintf (stderr, "int16!!!");
             source_int16 = source_char;
             bytes_per_sample = 2;
             break;
         }
         case int32:
         {
-            fprintf (stderr, "int32!!!");
             source_int32 = source_char;
             bytes_per_sample = 4;
             break;
         }
         case float32:
         {
-            //  here we probably need to set some float FLAGS (float_norm_exp?)
-            fprintf (stderr, "float32!!!");
             source_int32 = source_char;
             bytes_per_sample = 4;
             fp = 1;
@@ -94,8 +88,6 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
             fprintf (stderr, "WavPack unsupported data type %d\n", dtype_chosen);
             break;
     }
-    // fprintf (stderr, "WavPack data type chosen %d - bytes per sample %d - size of sample %ld\n", dtype_chosen, bytes_per_sample, sizeof(source[0]));
-
 
     size_t num_samples_remaining = num_samples;
     int32_t *temp_buffer = NULL;
@@ -120,9 +112,6 @@ size_t WavpackEncodeFile (void *source_char, size_t num_samples, size_t num_chan
     config.bits_per_sample = (int) bytes_per_sample * 8;
     config.sample_rate = 32000;     // doesn't need to be correct, although it might be nice
     config.float_norm_exp = fp ? 127 : 0;
-
-
-    fprintf (stderr, "WavPack bytes per sample %d - bits per sample %d\n", config.bytes_per_sample, config.bits_per_sample);
 
     config.block_samples = num_samples;
 

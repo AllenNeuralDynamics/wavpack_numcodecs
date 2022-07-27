@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages, Extension
 from Cython.Build import cythonize
 from pathlib import Path
-import numpy
+import platform
 from glob import glob
 from pathlib import Path
 import shutil
@@ -32,12 +32,31 @@ wavpack_headers_folder = pkg_folder / "include"
 sources = [str(pkg_folder / "wavpack_cython" / "wavpack.pyx")]
 include_dirs = [str(wavpack_headers_folder)]
 
+if platform.system() == "Linux":
+    if shutil.which("wavpack") is not None:
+        print("wavpack is installed!")
+        extra_link_args=["-L/usr/local/lib/", "-L/usr/bin"]
+    else:
+        extra_link_args=[f"-L{pkg_folder / 'libraries' / 'linux-x86_64'}"]
+elif platform.system() == "Darwin":
+    assert shutil.which("wavpack") is not None, ("wavpack need to be installed externally. "
+                                                 "You can use: brew install wavpack")
+    print("wavpack is installed!")
+    extra_link_args=["-L~/include/", "-L/usr/local/include/", "-L/usr/include"]
+else: # windows
+    if "64" in platform.architecture()[0]:
+        extra_link_args=[f"-L{pkg_folder / 'libraries' / 'windows-x86_64'}"]
+    else:
+        extra_link_args=[f"-L{pkg_folder / 'libraries' / 'windows-x86_32'}"]
+
 extensions = [
         Extension('wavpack_cython.wavpack',
                   sources=sources,
                   include_dirs=include_dirs,
                   libraries=["wavpack"],
-                  extra_link_args=[f"-L{str(pkg_folder / 'libraries' / 'linux-x86_64')}"]
+                  extra_link_args=extra_link_args
+                #   extra_link_args=["-L/usr/local/lib/"]
+                #   extra_link_args=[f"-L{str(pkg_folder / 'libraries' / 'linux-x86_64')}"]
                   ),
     ]
 

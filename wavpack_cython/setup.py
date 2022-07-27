@@ -37,7 +37,7 @@ if platform.system() == "Linux":
         print("wavpack is installed!")
         extra_link_args=["-L/usr/local/lib/", "-L/usr/bin"]
     else:
-        extra_link_args=[f"-L{pkg_folder / 'libraries' / 'linux-x86_64'}"]
+        extra_link_args=[f"-Llibraries/linux-x86_64"]
 elif platform.system() == "Darwin":
     assert shutil.which("wavpack") is not None, ("wavpack need to be installed externally. "
                                                  "You can use: brew install wavpack")
@@ -45,20 +45,21 @@ elif platform.system() == "Darwin":
     extra_link_args=["-L~/include/", "-L/usr/local/include/", "-L/usr/include"]
 else: # windows
     if "64" in platform.architecture()[0]:
-        extra_link_args=[f"-L{pkg_folder / 'libraries' / 'windows-x86_64'}"]
+        extra_link_args=[f"-Llibraries\windows-x86_64"]
     else:
-        extra_link_args=[f"-L{pkg_folder / 'libraries' / 'windows-x86_32'}"]
+        extra_link_args=[f"-Llibraries\windows-x86_32"]
 
 extensions = [
+        Extension('wavpack_cython.compat_ext',
+                  sources=['wavpack_cython/compat_ext.pyx'],
+                  extra_compile_args=[]), 
         Extension('wavpack_cython.wavpack',
                   sources=sources,
                   include_dirs=include_dirs,
                   libraries=["wavpack"],
                   extra_link_args=extra_link_args
-                #   extra_link_args=["-L/usr/local/lib/"]
-                #   extra_link_args=[f"-L{str(pkg_folder / 'libraries' / 'linux-x86_64')}"]
                   ),
-    ]
+       ]
 
 setup(
     name="wavpack_cython",

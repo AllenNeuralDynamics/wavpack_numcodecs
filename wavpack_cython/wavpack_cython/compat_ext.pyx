@@ -6,7 +6,7 @@
 from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release
 
 
-from .compat import ensure_contiguous_ndarray
+from numcodecs.compat import ensure_contiguous_ndarray
 
 
 cdef class Buffer:

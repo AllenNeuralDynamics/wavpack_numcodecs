@@ -1,12 +1,21 @@
-from pathlib import Path
+# cython: embedsignature=True
+# cython: profile=False
+# cython: linetrace=False
+# cython: binding=False
+# cython: language_level=3
+
+
 from cpython.buffer cimport PyBUF_ANY_CONTIGUOUS, PyBUF_WRITEABLE
 from cpython.bytes cimport PyBytes_FromStringAndSize, PyBytes_AS_STRING
 
-import numpy as np
 
-from numcodecs.compat_ext cimport Buffer
+from .compat_ext cimport Buffer
+from .compat_ext import Buffer
 from numcodecs.compat import ensure_contiguous_ndarray
 from numcodecs.abc import Codec
+
+from pathlib import Path
+import numpy as np
 
 
 parent = Path(__file__).parent

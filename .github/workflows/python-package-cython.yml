@@ -45,6 +45,7 @@ jobs:
           cd ..
       - name: Install dependencies
         run: |
+          pip install Cython
           pip install -e wavpack_cython
           pip install zarr
           pip install pytest

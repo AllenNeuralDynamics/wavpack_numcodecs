@@ -1,4 +1,4 @@
-name: Python Package using Conda
+name: Cython - Python Package using Conda
 
 on:
   pull_request:
@@ -19,7 +19,7 @@ jobs:
       - uses: s-weigand/setup-conda@v1
         with:
           python-version: 3.9
-      - name: Install WavPack (ubuntu - macOS)
+      - name: Install WavPack (ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt update
@@ -32,6 +32,7 @@ jobs:
           ./configure
           sudo make install
           cd ..
+      - name: Install WavPack (macos)
         if: matrix.os == 'macos-latest'
         run: |
           conda install wget

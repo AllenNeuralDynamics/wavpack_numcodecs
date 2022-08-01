@@ -4,9 +4,9 @@ from Cython.Build import cythonize
 from Cython.Distutils import build_ext
 from pathlib import Path
 import platform
-from glob import glob
 from pathlib import Path
 import shutil
+import os
 
 force_rebuild = True
 
@@ -34,6 +34,8 @@ sources = [str(pkg_folder / "wavpack_cython" / "wavpack.pyx")]
 include_dirs = [str(wavpack_headers_folder)]
 
 runtime_library_dirs = []
+library_dirs = []
+extra_link_args = []
 if platform.system() == "Linux":
     libraries=["wavpack"]
     if shutil.which("wavpack") is not None:
@@ -52,9 +54,10 @@ elif platform.system() == "Darwin":
 else: # windows
     libraries=["wavpackdll"]
     if "64" in platform.architecture()[0]:
-        extra_link_args=[f"-Llibraries\windows-x86_64"]
+        os.add_ddl_directory(str(Path("libraries") / "windows-x86_64"))
     else:
-        extra_link_args=[f"-Llibraries\windows-x86_32"]
+        os.add_ddl_directory(str(Path("libraries") / "windows-x86_32"))
+
 
 extensions = [
         Extension('wavpack_cython.compat_ext',

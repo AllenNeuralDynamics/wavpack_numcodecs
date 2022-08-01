@@ -34,8 +34,8 @@ sources = [str(pkg_folder / "wavpack_cython" / "wavpack.pyx")]
 include_dirs = [str(wavpack_headers_folder)]
 
 runtime_library_dirs = []
-library_dirs = []
 extra_link_args = []
+
 if platform.system() == "Linux":
     libraries=["wavpack"]
     if shutil.which("wavpack") is not None:
@@ -54,10 +54,9 @@ elif platform.system() == "Darwin":
 else: # windows
     libraries=["wavpackdll"]
     if "64" in platform.architecture()[0]:
-        os.add_ddl_directory(str(Path("libraries") / "windows-x86_64"))
+        shutil.copytree(str(Path("libraries") / "windows-x86_64"), "wavpack_cython")
     else:
-        os.add_ddl_directory(str(Path("libraries") / "windows-x86_32"))
-
+        shutil.copytree(str(Path("libraries") / "windows-x86_32"), "wavpack_cython")
 
 extensions = [
         Extension('wavpack_cython.compat_ext',

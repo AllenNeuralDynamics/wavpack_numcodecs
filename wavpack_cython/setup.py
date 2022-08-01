@@ -59,7 +59,7 @@ else: # windows
         lib_path = Path("libraries") / "windows-x86_64"
     else:
         lib_path = Path("libraries") / "windows-x86_32"
-    os.environ["PATH"] += os.pathsep + str(lib_path)
+    extra_link_args=[f"/LIBPATH:{str(lib_path)}"]
 
 extensions = [
         Extension('wavpack_cython.compat_ext',

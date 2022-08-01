@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup, find_packages, Extension
 from Cython.Build import cythonize
+from Cython.Distutils import build_ext
 from pathlib import Path
 import platform
 from glob import glob
@@ -80,4 +81,5 @@ setup(
     packages=find_packages(),
     ext_modules=cythonize(extensions),
     entry_points=entry_points,
+    cmdclass={'build_ext': build_ext}
 )

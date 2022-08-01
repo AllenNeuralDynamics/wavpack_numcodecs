@@ -32,6 +32,9 @@ jobs:
           ./configure
           sudo make install
           cd ..
+
+          # check libraries
+          ls /ust/local/lib/ | grep wavpack
       - name: Install WavPack (macos)
         if: matrix.os == 'macos-latest'
         run: |

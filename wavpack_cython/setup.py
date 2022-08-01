@@ -37,6 +37,7 @@ if platform.system() == "Linux":
         print("wavpack is installed!")
         extra_link_args=["-L/usr/local/lib/", "-L/usr/bin"]
     else:
+        print("Using shipped ilbraries")
         extra_link_args=[f"-Llibraries/linux-x86_64"]
 elif platform.system() == "Darwin":
     assert shutil.which("wavpack") is not None, ("wavpack need to be installed externally. "
@@ -79,5 +80,4 @@ setup(
     packages=find_packages(),
     ext_modules=cythonize(extensions),
     entry_points=entry_points,
-    include_package_data=True,
 )

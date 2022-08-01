@@ -16,6 +16,7 @@ typedef struct {
     int64_t total_bytes_read;
 } WavpackReaderContext;
 
+
 static int32_t raw_read_bytes (void *id, void *data, int32_t bcount)
 {
     WavpackReaderContext *rcxt = (WavpackReaderContext *) id;
@@ -103,9 +104,9 @@ static WavpackStreamReader64 raw_reader = {
 
 #define BUFFER_SAMPLES 256
 
-size_t WavpackDecodeFile (void *source, size_t source_bytes, int16_t *num_chans, void *destin_char, size_t destin_bytes)
+size_t WavpackDecodeFile (void *source, size_t source_bytes, int *num_chans, int *bytes_per_sample,
+                          void *destin_char, size_t destin_bytes)
 {
-    int16_t *destin = destin_char;
     size_t total_samples = 0, max_samples;
     int32_t *temp_buffer = NULL;
     WavpackReaderContext raw_wv;
@@ -126,30 +127,53 @@ size_t WavpackDecodeFile (void *source, size_t source_bytes, int16_t *num_chans,
     nch = WavpackGetNumChannels (wpc);
     bps = WavpackGetBytesPerSample (wpc);
 
-    if (bps != 2) {
-        fprintf (stderr, "error opening file: bytes/sample = %d\n", bps);
-        return -1;
-    }
+    int8_t *dest_int8 = destin_char;
+    int16_t *dest_int16 = destin_char;
+    int32_t *dest_int32 = destin_char;
 
     if (num_chans)
         *num_chans = nch;
 
-    max_samples = destin_bytes / sizeof (int16_t) / nch;
-    temp_buffer = malloc (BUFFER_SAMPLES * nch * sizeof (int32_t));
+    if (bytes_per_sample)
+        *bytes_per_sample = bps;
+
+    // fprintf (stderr, "WavPack decoding: bytes per sample %d - num chans %d\n", bps, nch);
+
+    max_samples = destin_bytes / bps / nch;
+
+    if (bps != 4)
+        temp_buffer = malloc (BUFFER_SAMPLES * nch * sizeof (int32_t));
 
     while (1) {
         int samples_to_decode = total_samples + BUFFER_SAMPLES > max_samples ?
             max_samples - total_samples :
             BUFFER_SAMPLES;
-        int samples_decoded = WavpackUnpackSamples (wpc, temp_buffer, samples_to_decode);
+        int samples_decoded = WavpackUnpackSamples (wpc, temp_buffer ? temp_buffer : dest_int32, samples_to_decode);
         int samples_to_copy = samples_decoded * nch;
-        int32_t *sptr = temp_buffer;
 
         if (!samples_decoded)
             break;
 
-        while (samples_to_copy--)
-            *destin++ = *sptr++;
+        if ((bps == 1) || (bps == 2)) 
+        {
+            int32_t *sptr = temp_buffer;
+
+            switch (bps) {
+                case 1:
+                    while (samples_to_copy--)
+                        *dest_int8++ = *sptr++;
+
+                    break;
+
+                case 2:
+                    while (samples_to_copy--)
+                        *dest_int16++ = *sptr++;
+
+                    break;
+            }
+        }
+        else
+            dest_int32 += samples_to_copy;
 
         if ((total_samples += samples_decoded) == max_samples)
             break;

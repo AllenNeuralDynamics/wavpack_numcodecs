@@ -1,4 +1,4 @@
-name: Python Package using Conda
+name: Cython - Python Package using Conda
 
 on:
   pull_request:
@@ -19,36 +19,39 @@ jobs:
       - uses: s-weigand/setup-conda@v1
         with:
           python-version: 3.9
-      - name: Install WavPack
+      - name: Install WavPack (ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt update
-          sudo apt install git 
+          sudo apt install wget
           sudo apt install -y gettext
 
-          # clone wavpack
-          git clone https://github.com/dbry/WavPack
-          cd WavPack
-          ./autogen.sh
+          wget https://www.wavpack.com/wavpack-5.5.0.tar.bz2
+          tar -xf wavpack-5.5.0.tar.bz2
+          cd wavpack-5.5.0
+          ./configure
           sudo make install
           cd ..
-      - name: WavPack binaries version (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          ./wavpack_numcodecs/lib/linux/wavpack --version
-      - name: WavPack binaries version (macOS)
+
+          # check libraries
+          ls /usr/local/lib/ | grep wavpack
+      - name: Install WavPack (macos)
         if: matrix.os == 'macos-latest'
         run: |
-          ./wavpack_numcodecs/lib/macos/wavpack --version
-      - name: WavPack binaries version (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          .\wavpack_numcodecs\lib\windows\wavpack.exe --version
+          conda install wget
+
+          wget https://www.wavpack.com/wavpack-5.5.0.tar.bz2
+          tar -xf wavpack-5.5.0.tar.bz2
+          cd wavpack-5.5.0
+          ./configure
+          sudo make install
+          cd ..
       - name: Install dependencies
         run: |
-          pip install -e .
+          pip install Cython
+          pip install -e wavpack_cython
           pip install zarr
           pip install pytest
       - name: Test with pytest 
         run: |
-          pytest -v tests
+          pytest -v wavpack_cython

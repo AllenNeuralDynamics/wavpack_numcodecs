@@ -33,10 +33,12 @@ wavpack_headers_folder = pkg_folder / "include"
 sources = [str(pkg_folder / "wavpack_cython" / "wavpack.pyx")]
 include_dirs = [str(wavpack_headers_folder)]
 
+runtime_library_dirs = []
 if platform.system() == "Linux":
     if shutil.which("wavpack") is not None:
         print("wavpack is installed!")
-        extra_link_args=["-L/usr/local/lib/", "-L/usr/bin"]
+        extra_link_args=["-L/usr/local/lib/", "-L/usr/bin/"]
+        runtime_library_dirs=["/usr/local/lib/", "/usr/bin/"]
     else:
         print("Using shipped ilbraries")
         extra_link_args=[f"-Llibraries/linux-x86_64"]
@@ -59,7 +61,8 @@ extensions = [
                   sources=sources,
                   include_dirs=include_dirs,
                   libraries=["wavpack"],
-                  extra_link_args=extra_link_args
+                  extra_link_args=extra_link_args,
+                  runtime_library_dirs=runtime_library_dirs
                   ),
        ]
 

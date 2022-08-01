@@ -53,10 +53,15 @@ elif platform.system() == "Darwin":
     extra_link_args=["-L~/include/", "-L/usr/local/include/", "-L/usr/include"]
 else: # windows
     libraries=["wavpackdll"]
+    # move lib files in src folder
     if "64" in platform.architecture()[0]:
-        shutil.copytree(str(Path("libraries") / "windows-x86_64"), "wavpack_cython")
+        lib_path = Path("libraries") / "windows-x86_64"
+        for libfile in lib_path.iterdir():
+            shutil.copy(libfile, "wavpack_cython")
     else:
-        shutil.copytree(str(Path("libraries") / "windows-x86_32"), "wavpack_cython")
+        lib_path = Path("libraries") / "windows-x86_32"
+        for libfile in lib_path.iterdir():
+            shutil.copy(libfile, "wavpack_cython")
 
 extensions = [
         Extension('wavpack_cython.compat_ext',

@@ -34,7 +34,7 @@ jobs:
           cd ..
 
           # check libraries
-          ls /ust/local/lib/ | grep wavpack
+          ls /usr/local/lib/ | grep wavpack
       - name: Install WavPack (macos)
         if: matrix.os == 'macos-latest'
         run: |

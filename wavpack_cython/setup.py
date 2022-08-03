@@ -43,8 +43,12 @@ if platform.system() == "Linux":
         extra_link_args=["-L/usr/local/lib/", "-L/usr/bin/"]
         runtime_library_dirs=["/usr/local/lib/", "/usr/bin/"]
     else:
-        print("Using shipped ilbraries")
+        print("Using shipped libraries")
         extra_link_args=[f"-Llibraries/linux-x86_64"]
+        runtime_library_dirs=[str(pkg_folder / 'libraries' / 'linux-x86_64')]
+        # hack
+        shutil.copy(str(pkg_folder / 'libraries' / 'linux-x86_64' / 'libwavpack.so'),
+                    str(pkg_folder / 'libraries' / 'linux-x86_64' / 'libwavpack.so.1'))
 elif platform.system() == "Darwin":
     libraries=["wavpack"]
     assert shutil.which("wavpack") is not None, ("wavpack need to be installed externally. "
